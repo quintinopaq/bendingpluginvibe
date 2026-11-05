@@ -146,7 +146,7 @@ public final class AbilityInitializer implements Initializer {
 
   private AbilityDescription get(String name) {
     return abilities.stream()
-      .filter(a -> a.name().equalsIgnoreCase(name))
+      .filter(a -> a.key().value().equalsIgnoreCase(name))
       .findFirst()
       .orElseThrow(() -> new IllegalStateException("Missing ability: " + name));
   }

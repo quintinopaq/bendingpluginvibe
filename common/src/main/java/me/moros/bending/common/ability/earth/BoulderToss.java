@@ -45,6 +45,7 @@ import me.moros.bending.api.user.User;
 import me.moros.bending.api.util.functional.Policies;
 import me.moros.bending.api.util.functional.RemovalPolicy;
 import me.moros.bending.api.util.functional.SwappedSlotsRemovalPolicy;
+import me.moros.bending.api.util.material.EarthMaterials;
 import me.moros.math.Vector3d;
 import org.spongepowered.configurate.objectmapping.meta.Comment;
 
