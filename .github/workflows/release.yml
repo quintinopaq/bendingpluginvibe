@@ -32,10 +32,20 @@ jobs:
       - name: Setup Gradle
         uses: gradle/actions/setup-gradle@v4
 
-      - name: Build Plugins
+      - name: Setup Gradle Cache
+        uses: actions/cache@v4
+        with:
+          path: |
+            ~/.gradle/caches/paperweight-userdev
+            ~/.gradle/caches/neoformruntime
+          key: ${{ runner.os }}-build-cache-${{ hashFiles('**/libs.versions.toml', '**/*.gradle.kts', '**/gradle-wrapper.properties') }}
+          restore-keys: |
+            ${{ runner.os }}-build-cache-
+
+      - name: Build Paper Plugin
         run: |
           chmod +x gradlew
-          ./gradlew assemble -x :bending-nms:createMinecraftArtifacts --no-daemon --max-workers=2
+          ./gradlew :bending-paper:assemble --no-daemon --max-workers=2
 
       - name: Determine Tag
         id: tag
