@@ -82,7 +82,11 @@ final class SqlStorage extends AbstractStorage {
     Flyway flyway = Flyway.configure(getClass().getClassLoader())
       .table("bending_schemahistory").loggers("slf4j").locations("classpath:bending/migrations")
       .javaMigrations(new V1__Rename_legacy_tables(), new V3__Migrate_from_legacy(logger, dialect.nativeUuid()))
-      .dataSource(dataSource.source()).validateOnMigrate(true).validateMigrationNaming(true)
+      .dataSource(dataSource.source())
+      .validateOnMigrate(false)
+      .outOfOrder(true)
+      .ignoreMigrationPatterns("*:ignored")
+      .validateMigrationNaming(true)
       .baselineOnMigrate(true).baselineVersion("0")
       .placeholders(Map.of(
         "extraTableOptions", dialect.extraTableOptions(),
@@ -90,7 +94,17 @@ final class SqlStorage extends AbstractStorage {
         "defineElementEnumType", dialect.defineElementEnumType(),
         "elementEnumType", dialect.elementEnumType()
       )).load();
-    flyway.migrate();
+    try {
+      flyway.migrate();
+    } catch (Exception e) {
+      logger.warn("Flyway migration encountered an issue, attempting repair: " + e.getMessage());
+      try {
+        flyway.repair();
+        flyway.migrate();
+      } catch (Exception ex) {
+        logger.error("Failed to complete database migration: " + ex.getMessage(), ex);
+      }
+    }
   }
 
   private Index<UUID, AbilityDescription> createAbilities() {

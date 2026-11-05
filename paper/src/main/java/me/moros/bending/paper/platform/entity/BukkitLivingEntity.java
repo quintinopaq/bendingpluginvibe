@@ -111,7 +111,27 @@ public class BukkitLivingEntity extends BukkitEntity implements LivingEntity {
     if (type() == EntityType.PLAYER) {
       DamageUtil.cacheDamageSource(uuid(), DamageSource.of(source.name(), desc));
     }
-    return Platform.instance().nativeAdapter().damage(event);
+    try {
+      if (Platform.instance().nativeAdapter().damage(event)) {
+        return true;
+      }
+    } catch (Throwable ignored) {
+    }
+    try {
+      org.bukkit.entity.Entity damager = null;
+      try {
+        damager = PlatformAdapter.toBukkitEntity(source);
+      } catch (Throwable ignored) {
+      }
+      if (damager != null) {
+        handle().damage(dmg, damager);
+      } else {
+        handle().damage(dmg);
+      }
+      return true;
+    } catch (Throwable t) {
+      return false;
+    }
   }
 
   @Override

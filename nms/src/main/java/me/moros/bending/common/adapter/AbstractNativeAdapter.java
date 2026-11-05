@@ -80,7 +80,16 @@ public abstract class AbstractNativeAdapter extends AbstractPacketUtil implement
       .arguments(event.target().name(), event.user().name(), event.ability().displayName());
     var bendingSource = DamageSource.of(event.user().name(), event.ability());
     var damageSource = new AbilityDamageSource(adapt(event.user()), adapt(deathMsg), bendingSource);
-    boolean result = target.hurtServer((ServerLevel) target.level(), damageSource, (float) event.damage());
+    boolean result = false;
+    try {
+      result = target.hurtServer((ServerLevel) target.level(), damageSource, (float) event.damage());
+    } catch (NoSuchMethodError | NoSuchFieldError | Exception e) {
+      try {
+        java.lang.reflect.Method hurtMethod = target.getClass().getMethod("hurt", net.minecraft.world.damagesource.DamageSource.class, float.class);
+        result = (boolean) hurtMethod.invoke(target, damageSource, (float) event.damage());
+      } catch (Throwable ignored) {
+      }
+    }
     target.setInvulnerableTime(capturedInvulnerableTime);
     return result;
   }

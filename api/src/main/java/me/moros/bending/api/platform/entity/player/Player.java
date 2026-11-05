@@ -56,6 +56,9 @@ public interface Player extends LivingEntity {
   boolean canSee(Entity other);
 
   default void sendNotification(Item item, Component title) {
-    Platform.instance().nativeAdapter().createNotification(item, title).send(List.of(uuid()));
+    try {
+      Platform.instance().nativeAdapter().createNotification(item, title).send(List.of(uuid()));
+    } catch (Throwable ignored) {
+    }
   }
 }

@@ -47,6 +47,10 @@ public sealed class CommandSender implements ForwardingAudience.Single permits P
     private PlayerCommandSender(CommandSourceStack stack, Player player) {
       super(stack, player);
     }
+
+    public Player player() {
+      return (Player) audience();
+    }
   }
 
   public static CommandSender from(CommandSourceStack stack) {

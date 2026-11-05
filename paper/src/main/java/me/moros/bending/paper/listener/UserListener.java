@@ -27,6 +27,7 @@ import io.papermc.paper.event.entity.EntityInsideBlockEvent;
 import io.papermc.paper.event.entity.EntityMoveEvent;
 import io.papermc.paper.event.player.PlayerArmSwingEvent;
 import me.moros.bending.api.ability.ActionType;
+import me.moros.bending.api.ability.AbilityDescription;
 import me.moros.bending.api.ability.Activation;
 import me.moros.bending.api.ability.DamageSource;
 import me.moros.bending.api.game.Game;
@@ -46,11 +47,14 @@ import me.moros.bending.common.ability.earth.MetalCable;
 import me.moros.bending.common.ability.earth.passive.Locksmithing;
 import me.moros.bending.common.locale.Message;
 import me.moros.bending.common.util.metadata.BendingMetadata;
+import me.moros.bending.paper.gui.AbilityBindGui;
 import me.moros.bending.paper.platform.DamageUtil;
 import me.moros.bending.paper.platform.PlatformAdapter;
 import me.moros.bending.paper.platform.block.LockableImpl;
 import me.moros.math.FastMath;
 import me.moros.math.Vector3d;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import org.bukkit.GameMode;
 import org.bukkit.Location;
 import org.bukkit.Material;
@@ -68,6 +72,7 @@ import org.bukkit.event.Listener;
 import org.bukkit.event.block.Action;
 import org.bukkit.event.entity.*;
 import org.bukkit.event.inventory.InventoryClickEvent;
+import org.bukkit.event.inventory.InventoryDragEvent;
 import org.bukkit.event.inventory.InventoryPickupItemEvent;
 import org.bukkit.event.inventory.InventoryType;
 import org.bukkit.event.player.PlayerAnimationType;
@@ -78,6 +83,7 @@ import org.bukkit.event.player.PlayerInteractEntityEvent;
 import org.bukkit.event.player.PlayerInteractEvent;
 import org.bukkit.event.player.PlayerItemHeldEvent;
 import org.bukkit.event.player.PlayerMoveEvent;
+import org.bukkit.event.player.PlayerSwapHandItemsEvent;
 import org.bukkit.event.player.PlayerToggleSneakEvent;
 import org.bukkit.event.player.PlayerToggleSprintEvent;
 import org.bukkit.inventory.EquipmentSlot;
@@ -491,9 +497,24 @@ public record UserListener(Game game) implements Listener, BukkitListener {
     if (disabledWorld(event)) {
       return;
     }
-    User user = Registries.BENDERS.get(event.getPlayer().getUniqueId());
+    Player player = event.getPlayer();
+    User user = Registries.BENDERS.get(player.getUniqueId());
     if (user != null) {
-      user.board().activeSlot(event.getPreviousSlot() + 1, event.getNewSlot() + 1);
+      int prevSlot = event.getPreviousSlot() + 1;
+      int newSlot = event.getNewSlot() + 1;
+      user.board().activeSlot(prevSlot, newSlot);
+
+      AbilityDescription bound = user.boundAbility(newSlot);
+      if (bound != null) {
+        boolean onCooldown = user.onCooldown(bound);
+        Component msg = Component.text("[" + newSlot + "] ", NamedTextColor.GOLD)
+          .append(bound.displayName())
+          .append(Component.text(" • ", NamedTextColor.DARK_GRAY))
+          .append(onCooldown
+            ? Component.text("⏳ Em Recarga", NamedTextColor.RED)
+            : Component.text("✔ Pronto", NamedTextColor.GREEN));
+        player.sendActionBar(msg);
+      }
     }
   }
 
@@ -506,8 +527,40 @@ public record UserListener(Game game) implements Listener, BukkitListener {
     }
   }
 
-  @EventHandler(priority = EventPriority.LOW, ignoreCancelled = true)
+  @EventHandler(priority = EventPriority.NORMAL)
+  public void onPlayerSwapHandItems(PlayerSwapHandItemsEvent event) {
+    if (disabledWorld(event)) {
+      return;
+    }
+    Player player = event.getPlayer();
+    // Abre a GUI exclusivamente ao agachar (Shift + F)
+    if (!player.isSneaking()) {
+      return;
+    }
+    User user = Registries.BENDERS.get(player.getUniqueId());
+    if (user != null && !user.elements().isEmpty()) {
+      event.setCancelled(true);
+      AbilityBindGui.open(player, user);
+    }
+  }
+
+  @EventHandler(priority = EventPriority.LOW)
+  public void onInventoryDrag(InventoryDragEvent event) {
+    if (event.getInventory().getHolder() instanceof AbilityBindGui) {
+      event.setCancelled(true);
+    }
+  }
+
+  @EventHandler(priority = EventPriority.LOW)
   public void onInventoryClick(InventoryClickEvent event) {
+    if (event.getInventory().getHolder() instanceof AbilityBindGui gui) {
+      event.setCancelled(true);
+      gui.handleClick(event);
+      return;
+    }
+    if (event.isCancelled()) {
+      return;
+    }
     ItemStack item = event.getCurrentItem();
     if (item == null || !(event.getClickedInventory() instanceof PlayerInventory)) {
       return;

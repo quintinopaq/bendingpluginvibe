@@ -22,10 +22,14 @@ package me.moros.bending.paper.platform.entity;
 import java.util.Optional;
 import java.util.function.UnaryOperator;
 
+import me.moros.bending.api.ability.AbilityDescription;
 import me.moros.bending.api.platform.entity.Entity;
+import me.moros.bending.api.platform.entity.LivingEntity;
+import me.moros.bending.api.user.User;
 import me.moros.bending.api.util.data.DataKey;
 import me.moros.bending.api.util.data.DataKeyed;
 import me.moros.bending.common.util.metadata.BendingMetadata;
+import me.moros.bending.paper.platform.PlatformAdapter;
 import net.kyori.adventure.audience.Audience;
 import org.bukkit.entity.Projectile;
 import org.jspecify.annotations.Nullable;
@@ -94,6 +98,48 @@ public class BukkitEntity implements Entity {
   @Override
   public Audience audience() {
     return handle();
+  }
+
+  @Override
+  public boolean damage(double damage) {
+    if (handle() instanceof org.bukkit.entity.Damageable d) {
+      d.damage(damage);
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public boolean damage(double damage, Entity source) {
+    if (handle() instanceof org.bukkit.entity.Damageable d) {
+      d.damage(damage, PlatformAdapter.toBukkitEntity(source));
+      return true;
+    }
+    return false;
+  }
+
+  @Override
+  public boolean damage(double damage, User source, AbilityDescription desc) {
+    if (this instanceof LivingEntity living) {
+      return living.damage(damage, source, desc);
+    }
+    if (handle() instanceof org.bukkit.entity.LivingEntity living) {
+      return PlatformAdapter.fromBukkitEntity(living).damage(damage, source, desc);
+    }
+    if (handle() instanceof org.bukkit.entity.Damageable d) {
+      org.bukkit.entity.Entity damager = null;
+      try {
+        damager = PlatformAdapter.toBukkitEntity(source);
+      } catch (Throwable ignored) {
+      }
+      if (damager != null) {
+        d.damage(damage, damager);
+      } else {
+        d.damage(damage);
+      }
+      return true;
+    }
+    return false;
   }
 
   @Override

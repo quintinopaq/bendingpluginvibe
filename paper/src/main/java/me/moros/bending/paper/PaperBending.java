@@ -25,7 +25,10 @@ import java.util.Locale;
 import java.util.stream.Collectors;
 
 import me.moros.bending.api.ability.element.Element;
+import me.moros.bending.api.event.CooldownChangeEvent;
 import me.moros.bending.api.game.Game;
+import net.kyori.adventure.text.Component;
+import net.kyori.adventure.text.format.NamedTextColor;
 import me.moros.bending.api.platform.Platform;
 import me.moros.bending.api.registry.Registries;
 import me.moros.bending.api.user.User;
@@ -36,6 +39,7 @@ import me.moros.bending.common.hook.MiniPlaceholdersHook;
 import me.moros.bending.common.hook.PresetLimits;
 import me.moros.bending.common.logging.Logger;
 import me.moros.bending.common.util.ReflectionUtil;
+import me.moros.bending.paper.gui.AbilityBindGui;
 import me.moros.bending.paper.hook.PlaceholderAPIHook;
 import me.moros.bending.paper.listener.BlockListener;
 import me.moros.bending.paper.listener.ConnectionListener;
@@ -84,6 +88,39 @@ final class PaperBending extends AbstractBending<BendingBootstrap> {
       .buildOnEnable(parent);
     BrigadierSetup.setup(manager);
     Commander.create(manager, PlayerCommandSender.class, this).init();
+
+    manager.command(manager.commandBuilder("bending", "b")
+      .literal("gui")
+      .senderType(PlayerCommandSender.class)
+      .handler(c -> {
+        Player player = c.sender().player();
+        User user = Registries.BENDERS.get(player.getUniqueId());
+        if (user != null) {
+          AbilityBindGui.open(player, user);
+        }
+      })
+    );
+
+    game.eventBus().subscribe(CooldownChangeEvent.Remove.class, event -> {
+      Player player = parent.getServer().getPlayer(event.user().uuid());
+      if (player != null && player.isOnline()) {
+        player.playSound(player.getLocation(), org.bukkit.Sound.BLOCK_NOTE_BLOCK_CHIME, 0.7f, 1.6f);
+        player.sendActionBar(Component.text("✔ ", NamedTextColor.GREEN)
+          .append(event.ability().displayName())
+          .append(Component.text(" pronta para uso!", NamedTextColor.GREEN)));
+      }
+    });
+
+    game.eventBus().subscribe(CooldownChangeEvent.Add.class, event -> {
+      Player player = parent.getServer().getPlayer(event.user().uuid());
+      if (player != null && player.isOnline()) {
+        if (event.ability().equals(event.user().selectedAbility())) {
+          player.sendActionBar(Component.text("⏳ ", NamedTextColor.RED)
+            .append(event.ability().displayName())
+            .append(Component.text(" em recarga!", NamedTextColor.RED)));
+        }
+      }
+    });
 
     parent.getServer().getServicesManager().register(Game.class, game, parent, ServicePriority.Normal);
   }

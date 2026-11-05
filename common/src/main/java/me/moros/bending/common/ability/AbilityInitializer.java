@@ -58,6 +58,7 @@ import me.moros.bending.common.ability.earth.sequence.EarthShards;
 import me.moros.bending.common.ability.fire.Blaze;
 import me.moros.bending.common.ability.fire.Combustion;
 import me.moros.bending.common.ability.fire.FireBlast;
+import me.moros.bending.common.ability.fire.Fireball;
 import me.moros.bending.common.ability.fire.FireBreath;
 import me.moros.bending.common.ability.fire.FireBurst;
 import me.moros.bending.common.ability.fire.FireJet;
@@ -367,6 +368,10 @@ public final class AbilityInitializer implements Initializer {
   }
 
   private void initFire() {
+    AbilityDescription fireball = AbilityDescription.builder("Fireball", Fireball::new)
+      .element(FIRE).activation(ATTACK).build();
+    abilities.add(fireball);
+
     AbilityDescription fireBlast = AbilityDescription.builder("FireBlast", FireBlast::new)
       .element(FIRE).activation(ATTACK, SNEAK).build();
     abilities.add(fireBlast);

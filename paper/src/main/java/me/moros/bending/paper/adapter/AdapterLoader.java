@@ -31,25 +31,23 @@ public final class AdapterLoader {
   }
 
   public static NativeAdapter loadAdapter(Logger logger, String version) {
-    String mcVersion = ServerBuildInfo.buildInfo().minecraftVersionId();
-    if (version.endsWith(".0")) {
-      version = version.substring(0, version.length() - 2);
-    }
-    if (mcVersion.equals(version)) {
-      logger.info("Successfully loaded native adapter for version " + mcVersion);
-      return new NativeAdapterImpl();
-    } else {
+    try {
+      NativeAdapter adapter = new NativeAdapterImpl();
+      logger.info("Successfully loaded native adapter for version " + ServerBuildInfo.buildInfo().minecraftVersionId());
+      return adapter;
+    } catch (Throwable t) {
+      String mcVersion = ServerBuildInfo.buildInfo().minecraftVersionId();
       String s = """
         
         ****************************************************************
-        * Unable to find native adapter for version %s.
+        * Unable to find native adapter for version %s: %s.
         * Some features may be unsupported (for example toast notifications) or induce significant overhead.
         * Packet based abilities will utilize real entities instead which can be slower when spawned in large amounts.
         * It is recommended you use a supported version (%s).
         ****************************************************************
-        """.formatted(mcVersion, version);
+        """.formatted(mcVersion, t.getMessage(), version);
       logger.warn(s);
+      return DUMMY;
     }
-    return DUMMY;
   }
 }

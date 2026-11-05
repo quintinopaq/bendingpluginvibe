@@ -96,7 +96,11 @@ public abstract class AbstractPacketUtil implements PacketUtil {
 
   @Override
   public ClientboundPacket createNotification(Item item, Component title) {
-    return wrap(new ClientboundBundlePacket(List.of(createNotificationPacket(item, title), clearNotification())));
+    try {
+      return wrap(new ClientboundBundlePacket(List.of(createNotificationPacket(item, title), clearNotification())));
+    } catch (Throwable t) {
+      return wrap(new ClientboundBundlePacket(List.of()));
+    }
   }
 
   @Override
@@ -154,14 +158,52 @@ public abstract class AbstractPacketUtil implements PacketUtil {
 
   protected ClientboundUpdateAdvancementsPacket createNotificationPacket(Item item, Component title) {
     String criteriaId = "bending:criteria_progress";
-    var icon = ItemStackTemplate.fromNonEmptyStack(adapt(item));
     net.minecraft.network.chat.Component nmsTitle = adapt(title);
     net.minecraft.network.chat.Component nmsDesc = net.minecraft.network.chat.Component.empty();
     AdvancementType type = AdvancementType.TASK;
     var criterion = CriteriaTriggers.IMPOSSIBLE.createCriterion(new ImpossibleTrigger.TriggerInstance());
-    var advancement = new Advancement.Builder()
-      .display(icon, nmsTitle, nmsDesc, type, true, false, true)
-      .addCriterion(criteriaId, criterion).build(ADVANCEMENT_KEY);
+    var advBuilder = new Advancement.Builder();
+
+    boolean displayed = false;
+    // 1. Try modern ItemStackTemplate (Paper 26.3+)
+    try {
+      var icon = ItemStackTemplate.fromNonEmptyStack(adapt(item));
+      java.lang.reflect.Method m = Advancement.Builder.class.getMethod("display", ItemStackTemplate.class, net.minecraft.network.chat.Component.class, net.minecraft.network.chat.Component.class, AdvancementType.class, boolean.class, boolean.class, boolean.class);
+      m.invoke(advBuilder, icon, nmsTitle, nmsDesc, type, true, false, true);
+      displayed = true;
+    } catch (Throwable ignored) {
+    }
+
+    // 2. Try Paper 26.2 / earlier versions (ItemStack or Item)
+    if (!displayed) {
+      for (java.lang.reflect.Method m : Advancement.Builder.class.getMethods()) {
+        if (m.getName().equals("display") && m.getParameterCount() >= 5) {
+          Class<?>[] pTypes = m.getParameterTypes();
+          try {
+            if (pTypes[0].isAssignableFrom(ItemStack.class)) {
+              if (pTypes.length == 7) {
+                m.invoke(advBuilder, adapt(item), nmsTitle, nmsDesc, type, true, false, true);
+              } else if (pTypes.length == 8) {
+                m.invoke(advBuilder, adapt(item), nmsTitle, nmsDesc, null, type, true, false, true);
+              }
+              displayed = true;
+              break;
+            } else if (pTypes[0].isInstance(adapt(item).getItem()) || pTypes[0].isAssignableFrom(adapt(item).getItem().getClass())) {
+              if (pTypes.length == 7) {
+                m.invoke(advBuilder, adapt(item).getItem(), nmsTitle, nmsDesc, type, true, false, true);
+              } else if (pTypes.length == 8) {
+                m.invoke(advBuilder, adapt(item).getItem(), nmsTitle, nmsDesc, null, type, true, false, true);
+              }
+              displayed = true;
+              break;
+            }
+          } catch (Throwable ignored) {
+          }
+        }
+      }
+    }
+
+    var advancement = advBuilder.addCriterion(criteriaId, criterion).build(ADVANCEMENT_KEY);
     AdvancementProgress progress = new AdvancementProgress();
     progress.update(AdvancementRequirements.allOf(List.of(criteriaId)));
     progress.grantProgress(criteriaId);

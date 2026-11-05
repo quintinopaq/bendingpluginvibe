@@ -97,9 +97,21 @@ public class AvatarState extends AbilityInstance {
       .firstInstance(user, AvatarState.class).orElse(null);
     if (method == Activation.ATTACK) {
       if (instance != null) {
-        instance.onClick();
+        if (instance.chakraFocus != null) {
+          instance.onClick();
+        } else {
+          instance.removalPolicy = (u, d) -> true;
+          user.playSound(Sound.BLOCK_BEACON_DEACTIVATE.asEffect(2, 1.5F).sound());
+        }
+        return false;
       }
-      return false;
+      this.user = user;
+      loadConfig();
+      Set<Element> elements = user.elements().isEmpty()
+        ? ElementSet.copyOf(Element.VALUES)
+        : user.elements();
+      activateDirect(elements);
+      return true;
     } else if (instance != null) {
       return false;
     }
@@ -111,6 +123,19 @@ public class AvatarState extends AbilityInstance {
     cooldown = userConfig.transientCooldown;
     chakraFocus = new ChakraFocus(user);
     return true;
+  }
+
+  private void activateDirect(Set<Element> elements) {
+    cooldown = userConfig.cooldown;
+    long duration = userConfig.duration;
+    int durationTicks = Platform.instance().toTicks(duration, TimeUnit.MILLISECONDS);
+
+    user.addPotion(PotionEffect.GLOWING.builder().duration(durationTicks).amplifier(0).build());
+    removalPolicy = Policies.defaults();
+
+    setupAvatarStateBar(elements, true, durationTicks);
+    resetCooldownsAndEffects(elements, true);
+    addModifiers(elements);
   }
 
   @Override
@@ -139,7 +164,6 @@ public class AvatarState extends AbilityInstance {
       FocusResult result = chakraFocus.tryFocus();
       if (result == FocusResult.FAIL) {
         user.playSound(Sound.ENTITY_VILLAGER_NO.asEffect(1, 0.9F).sound());
-        removalPolicy = (u, d) -> true;
       } else if (result == FocusResult.SUCCESS) {
         tryActivate();
       }
@@ -159,8 +183,9 @@ public class AvatarState extends AbilityInstance {
     );
 
     if (elementsWithOpenChakras.isEmpty()) {
-      removalPolicy = (u, d) -> true;
-      return;
+      elementsWithOpenChakras = user.elements().isEmpty()
+        ? ElementSet.copyOf(Element.VALUES)
+        : user.elements();
     }
 
     long duration;

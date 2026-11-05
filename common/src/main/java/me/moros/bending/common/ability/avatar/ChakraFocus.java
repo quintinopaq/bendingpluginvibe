@@ -66,13 +66,19 @@ public class ChakraFocus implements Updatable {
     for (var chakra : Chakra.VALUES) {
       chakras.put(chakra, new ChakraData(duration, false));
     }
-    Set<Element> boundElements = ElementSet.mutable();
+    Set<Element> knownElements = ElementSet.mutable();
+    knownElements.addAll(user.elements());
     user.slots().forEach((desc, idx) -> {
       if (desc.elements().size() == 1) {
-        boundElements.add(desc.elements().iterator().next());
+        knownElements.add(desc.elements().iterator().next());
       }
     });
-    boundElements.forEach(e -> chakras.get(Chakra.elementalChakra(e)).open());
+    knownElements.forEach(e -> {
+      Chakra c = Chakra.elementalChakra(e);
+      if (c != null && chakras.containsKey(c)) {
+        chakras.get(c).open();
+      }
+    });
   }
 
   private Component buildName() {

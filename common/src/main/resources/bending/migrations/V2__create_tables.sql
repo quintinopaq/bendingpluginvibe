@@ -42,13 +42,13 @@ CREATE TABLE IF NOT EXISTS bending_preset_slots (
 )${extraTableOptions};
 
 -- Views
-CREATE VIEW bending_profiles AS
+CREATE OR REPLACE VIEW bending_profiles AS
     SELECT users.user_id, presets.preset_name, slots.slot, slots.ability_id
     FROM bending_users AS users
     INNER JOIN bending_presets AS presets ON users.user_id = presets.user_id
     INNER JOIN bending_preset_slots AS slots ON presets.preset_id = slots.preset_id;
 
-CREATE VIEW bending_profiles_simple AS
+CREATE OR REPLACE VIEW bending_profiles_simple AS
     SELECT profiles.user_id, profiles.preset_name, profiles.slot, abilities.ability_name
     FROM bending_profiles AS profiles
     INNER JOIN bending_abilities AS abilities ON profiles.ability_id = abilities.ability_id;

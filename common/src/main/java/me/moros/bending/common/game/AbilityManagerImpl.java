@@ -139,7 +139,7 @@ public class AbilityManagerImpl implements AbilityManager {
     pending.clear();
     generics.update();
 
-    Collection<Exception> exceptions = new ArrayList<>();
+    Collection<Throwable> exceptions = new ArrayList<>();
     var iterator = globalInstances.values().iterator();
     size = 0;
     while (iterator.hasNext()) {
@@ -150,7 +150,7 @@ public class AbilityManagerImpl implements AbilityManager {
         UpdateResult result = UpdateResult.REMOVE;
         try {
           result = ability.update();
-        } catch (Exception e) {
+        } catch (Throwable e) {
           exceptions.add(e);
         } finally {
           if (result == UpdateResult.REMOVE) {
@@ -165,7 +165,7 @@ public class AbilityManagerImpl implements AbilityManager {
         iterator.remove();
       }
     }
-    for (Exception e : exceptions) {
+    for (Throwable e : exceptions) {
       logger.error(e.getMessage(), e);
     }
     return UpdateResult.CONTINUE;
