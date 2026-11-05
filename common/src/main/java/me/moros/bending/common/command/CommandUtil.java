@@ -73,10 +73,20 @@ public final class CommandUtil {
     ElementSet singleElementSet = ElementSet.of(element);
     var all = List.of(
       collectAbilities(permissionChecker, singleElementSet),
-      collectSequences(permissionChecker, singleElementSet),
+      collectSequences(permissionChecker, element),
       collectPassives(permissionChecker, singleElementSet)
     );
     return new AbilityDisplay(all);
+  }
+
+  public static AbilityDisplay collectAllSequences(Predicate<AbilityDescription> permissionChecker) {
+    var components = Registries.SEQUENCES.stream()
+      .filter(desc -> !desc.hidden())
+      .filter(permissionChecker)
+      .sorted(Comparator.comparing(Keyed::key))
+      .map(CommandUtil::mapToClickComponent)
+      .toList();
+    return new AbilityDisplay(Message.SEQUENCES.build(), components);
   }
 
   private static AbilityDisplay collectAbilities(Predicate<AbilityDescription> permissionChecker, ElementSet singleElementSet) {
@@ -90,10 +100,10 @@ public final class CommandUtil {
     return new AbilityDisplay(Message.ABILITIES.build(), components);
   }
 
-  private static AbilityDisplay collectSequences(Predicate<AbilityDescription> permissionChecker, ElementSet singleElementSet) {
+  private static AbilityDisplay collectSequences(Predicate<AbilityDescription> permissionChecker, Element element) {
     var components = Registries.SEQUENCES.stream()
       .filter(desc -> !desc.hidden())
-      .filter(desc -> singleElementSet.equals(desc.elements()))
+      .filter(desc -> desc.elements().contains(element))
       .filter(permissionChecker)
       .sorted(Comparator.comparing(Keyed::key))
       .map(CommandUtil::mapToClickComponent)
@@ -112,8 +122,35 @@ public final class CommandUtil {
     return new AbilityDisplay(Message.PASSIVES.build(), components);
   }
 
-  private static Component mapToClickComponent(AbilityDescription desc) {
-    return desc.displayName().clickEvent(ClickEvent.runCommand("/bending help " + desc.key().asString()));
+  public static Component mapToClickComponent(AbilityDescription desc) {
+    Component hover;
+    if (desc instanceof AbilityDescription.Sequence seq) {
+      hover = Component.text()
+        .append(desc.displayName().decorate(net.kyori.adventure.text.format.TextDecoration.BOLD))
+        .append(Component.text(" [Sequência / Combo]", ColorPalette.ACCENT))
+        .append(Component.newline())
+        .append(Component.text("Elementos: ", ColorPalette.TEXT_COLOR))
+        .append(Component.join(JoinConfiguration.separator(Component.text(" + ", ColorPalette.NEUTRAL)), desc.elements().stream().map(Element::displayName).toList()))
+        .append(Component.newline())
+        .append(Component.text("Ordem: ", ColorPalette.WARN))
+        .append(seq.instructions())
+        .append(Component.newline()).append(Component.newline())
+        .append(Message.ABILITY_DESCRIPTION.build(desc))
+        .append(Component.newline()).append(Component.newline())
+        .append(Component.text("➜ Clique para ver mais detalhes.", ColorPalette.NEUTRAL))
+        .build();
+    } else {
+      hover = Component.text()
+        .append(desc.displayName().decorate(net.kyori.adventure.text.format.TextDecoration.BOLD))
+        .append(Component.newline())
+        .append(Message.ABILITY_DESCRIPTION.build(desc))
+        .append(Component.newline()).append(Component.newline())
+        .append(Component.text("➜ Clique para ver mais detalhes.", ColorPalette.NEUTRAL))
+        .build();
+    }
+    return desc.displayName()
+      .hoverEvent(HoverEvent.showText(hover))
+      .clickEvent(ClickEvent.runCommand("/bending help " + desc.key().asString()));
   }
 
   public static final class AbilityDisplay implements Iterable<Component> {

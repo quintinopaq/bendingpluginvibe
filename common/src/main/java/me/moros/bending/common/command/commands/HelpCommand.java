@@ -72,7 +72,7 @@ public record HelpCommand<C extends Audience>(Commander<C> commander, MinecraftH
       Predicate<AbilityDescription> predicate = c.optional(ContextKeys.BENDING_PLAYER)
         .map(this::permissionFilter).orElse(d -> true);
       return Stream.concat(
-        Element.NAMES.stream(),
+        Stream.concat(Element.NAMES.stream(), Stream.of("sequences", "combos")),
         Registries.ABILITIES.stream().filter(d -> !d.hidden()).filter(predicate).map(CommandUtil::mapToSuggestion)
       ).toList();
     };
@@ -87,6 +87,10 @@ public record HelpCommand<C extends Audience>(Commander<C> commander, MinecraftH
     if (!rawQuery.isEmpty()) {
       int index = rawQuery.indexOf(' ');
       String query = rawQuery.substring(0, index > 0 ? index : rawQuery.length());
+      if (query.equalsIgnoreCase("sequences") || query.equalsIgnoreCase("combos") || query.equalsIgnoreCase("sequencias")) {
+        onSequencesInfo(context);
+        return;
+      }
       if (query.length() <= 5) {
         Element element = Element.fromName(query);
         if (element != null) {
@@ -101,6 +105,13 @@ public record HelpCommand<C extends Audience>(Commander<C> commander, MinecraftH
       }
     }
     help.queryCommands(rawQuery, sender);
+  }
+
+  private void onSequencesInfo(CommandContext<C> context) {
+    var user = context.sender();
+    var display = CommandUtil.collectAllSequences(permissionPredicate(context));
+    user.sendMessage(Component.text("✦ Sequências & Combos Elementais ✦", ColorPalette.HEADER));
+    display.forEach(user::sendMessage);
   }
 
   private void onAbilityInfo(C sender, AbilityDescription ability) {

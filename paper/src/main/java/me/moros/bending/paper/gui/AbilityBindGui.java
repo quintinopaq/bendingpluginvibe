@@ -68,6 +68,7 @@ public final class AbilityBindGui implements InventoryHolder {
   private int currentPage;
   private @Nullable AbilityDescription selectedAbility;
   private List<AbilityDescription> cachedAbilities = List.of();
+  private boolean viewingSequences = false;
 
   private AbilityBindGui(Player player, User user) {
     this.player = player;
@@ -99,6 +100,14 @@ public final class AbilityBindGui implements InventoryHolder {
   }
 
   private void updateCachedAbilities() {
+    if (viewingSequences) {
+      cachedAbilities = Registries.SEQUENCES.stream()
+        .filter(desc -> !desc.hidden())
+        .filter(user::hasPermission)
+        .sorted(Comparator.comparing(d -> d.key().value()))
+        .toList();
+      return;
+    }
     if (currentElement == null) {
       cachedAbilities = List.of();
       return;
@@ -127,7 +136,7 @@ public final class AbilityBindGui implements InventoryHolder {
 
     for (int i = 0; i < elements.size() && i < 7; i++) {
       Element elem = elements.get(i);
-      boolean active = elem.equals(currentElement);
+      boolean active = !viewingSequences && elem.equals(currentElement);
       Material mat = materialForElement(elem);
       Component name = active
         ? plain(Component.text("● ", NamedTextColor.GOLD, TextDecoration.BOLD)
@@ -147,6 +156,21 @@ public final class AbilityBindGui implements InventoryHolder {
       ItemStack tabItem = createItem(mat, 1, name, lore, active);
       inventory.setItem(i, tabItem);
     }
+
+    // Sequence / Combos tab in slot 7
+    Component comboTabName = viewingSequences
+      ? plain(Component.text("✦ Sequências & Combos ✦ (Ativo)", NamedTextColor.GOLD, TextDecoration.BOLD))
+      : plain(Component.text("✧ Sequências & Combos", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD));
+    List<Component> comboTabLore = List.of(
+      plain(Component.text("Guia Informativo de Combos", NamedTextColor.YELLOW)),
+      plain(Component.text("Acesse todas as habilidades de sequência e combinações", NamedTextColor.GRAY)),
+      plain(Component.text("elementais disponíveis com suas instruções e efeitos.", NamedTextColor.GRAY)),
+      Component.empty(),
+      plain(Component.text(viewingSequences ? "✔ Visualizando Combos no momento" : "➜ Clique para abrir o Guia de Combos!",
+        viewingSequences ? NamedTextColor.GREEN : NamedTextColor.YELLOW))
+    );
+    ItemStack comboTabItem = createItem(Material.NETHER_STAR, 1, comboTabName, comboTabLore, viewingSequences);
+    inventory.setItem(7, comboTabItem);
 
     ItemStack closeItem = createItem(Material.BARRIER, 1,
       plain(Component.text("✖ Fechar Menu", NamedTextColor.RED, TextDecoration.BOLD)),
@@ -189,11 +213,18 @@ public final class AbilityBindGui implements InventoryHolder {
   }
 
   private ItemStack buildAbilityItem(AbilityDescription desc, boolean isSelected) {
-    Material mat = materialForAbility(desc);
-    Component title = plain(asRendered(desc.displayName()));
+    boolean isSequence = desc instanceof Sequence;
+    Material mat = isSequence ? Material.NETHER_STAR : materialForAbility(desc);
+    Component title = isSequence
+      ? plain(asRendered(desc.displayName()).append(Component.text(" [COMBO]", NamedTextColor.GOLD, TextDecoration.BOLD)))
+      : plain(asRendered(desc.displayName()));
 
     List<Component> lore = new ArrayList<>();
-    if (isSelected) {
+    if (isSequence) {
+      lore.add(plain(Component.text("✦ HABILIDADE DE SEQUÊNCIA / COMBO", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD)));
+      lore.add(plain(Component.text("➜ Clique para imprimir a sequência no chat!", NamedTextColor.YELLOW)));
+      lore.add(Component.empty());
+    } else if (isSelected) {
       lore.add(plain(Component.text("✔ SELECIONADA PARA ALOCAR", NamedTextColor.GREEN, TextDecoration.BOLD)));
       lore.add(plain(Component.text("➜ Clique em um slot (1-9) abaixo para vincular!", NamedTextColor.YELLOW)));
       lore.add(Component.empty());
@@ -202,8 +233,8 @@ public final class AbilityBindGui implements InventoryHolder {
       lore.add(Component.empty());
     }
 
-    lore.add(plain(Component.text("Elemento: ", NamedTextColor.GRAY)
-      .append(asRendered(currentElement != null ? currentElement.displayName() : Component.text("Geral")))));
+    lore.add(plain(Component.text("Elementos: ", NamedTextColor.GRAY)
+      .append(asRendered(getElementDisplay(desc)))));
 
     boolean onCooldown = user.onCooldown(desc);
     lore.add(plain(Component.text("Status: ", NamedTextColor.GRAY)
@@ -218,8 +249,11 @@ public final class AbilityBindGui implements InventoryHolder {
 
     if (desc instanceof Sequence seq) {
       lore.add(Component.empty());
-      lore.add(plain(Component.text("Sequência / Combo: ", NamedTextColor.GOLD)));
+      lore.add(plain(Component.text("Sequência de Ativação (Combo):", NamedTextColor.GOLD, TextDecoration.BOLD)));
       lore.add(plain(asRendered(seq.instructions())));
+      lore.add(Component.empty());
+      lore.add(plain(Component.text("ℹ Sequências são combos passivos executados com os", NamedTextColor.YELLOW)));
+      lore.add(plain(Component.text("  golpes vinculados nos seus slots normais da hotbar.", NamedTextColor.YELLOW)));
     } else {
       String key = desc.translationKey() + ".instructions";
       if (GlobalTranslator.translator().canTranslate(key, locale)) {
@@ -229,7 +263,7 @@ public final class AbilityBindGui implements InventoryHolder {
       }
     }
 
-    return createItem(mat, 1, title, lore, isSelected);
+    return createItem(mat, 1, title, lore, isSelected || (isSequence && !onCooldown));
   }
 
   private void renderSeparatorRow() {
@@ -326,12 +360,27 @@ public final class AbilityBindGui implements InventoryHolder {
       return;
     }
 
+    // Sequence / Combo tab (slot 7)
+    if (rawSlot == 7) {
+      if (!viewingSequences) {
+        viewingSequences = true;
+        currentPage = 0;
+        selectedAbility = null;
+        player.playSound(player.getLocation(), Sound.BLOCK_BEACON_ACTIVATE, 1.0f, 1.4f);
+        updateCachedAbilities();
+        render();
+      }
+      return;
+    }
+
     // Element tab selection
     if (rawSlot < elements.size() && rawSlot < 7) {
       Element clicked = elements.get(rawSlot);
-      if (!clicked.equals(currentElement)) {
+      if (viewingSequences || !clicked.equals(currentElement)) {
+        viewingSequences = false;
         currentElement = clicked;
         currentPage = 0;
+        selectedAbility = null;
         player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 1.2f);
         updateCachedAbilities();
         render();
@@ -344,6 +393,22 @@ public final class AbilityBindGui implements InventoryHolder {
       int abilityIndex = (currentPage * ABILITIES_PER_PAGE) + (rawSlot - 9);
       if (abilityIndex >= 0 && abilityIndex < cachedAbilities.size()) {
         AbilityDescription clickedDesc = cachedAbilities.get(abilityIndex);
+        if (clickedDesc instanceof Sequence seq) {
+          player.playSound(player.getLocation(), Sound.BLOCK_ENCHANTMENT_TABLE_USE, 1.0f, 1.2f);
+          player.sendActionBar(plain(Component.text("✦ Combo: ", NamedTextColor.GOLD)
+            .append(asRendered(seq.displayName()))
+            .append(Component.text(" - Veja a ordem no chat!", NamedTextColor.YELLOW))));
+          player.sendMessage(plain(Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", NamedTextColor.DARK_GRAY)));
+          player.sendMessage(plain(Component.text("✦ Sequência: ", NamedTextColor.GOLD, TextDecoration.BOLD)
+            .append(asRendered(seq.displayName()))));
+          player.sendMessage(plain(Component.text("Ordem: ", NamedTextColor.YELLOW, TextDecoration.BOLD)
+            .append(asRendered(seq.instructions()))));
+          player.sendMessage(plain(Component.text("Descrição: ", NamedTextColor.GRAY)
+            .append(asRendered(Message.ABILITY_DESCRIPTION.build(seq)))));
+          player.sendMessage(plain(Component.text("━━━━━━━━━━━━━━━━━━━━━━━━━━━━━━", NamedTextColor.DARK_GRAY)));
+          return;
+        }
+
         if (clickedDesc.equals(selectedAbility)) {
           selectedAbility = null;
           player.playSound(player.getLocation(), Sound.UI_BUTTON_CLICK, 1.0f, 0.8f);
@@ -423,6 +488,13 @@ public final class AbilityBindGui implements InventoryHolder {
     if (desc.elements().isEmpty()) {
       return Component.text("Geral", NamedTextColor.GRAY);
     }
+    if (desc.elements().size() > 1) {
+      List<Component> list = new ArrayList<>();
+      for (Element e : desc.elements()) {
+        list.add(e.displayName());
+      }
+      return Component.join(net.kyori.adventure.text.JoinConfiguration.separator(Component.text(" + ", NamedTextColor.DARK_GRAY)), list);
+    }
     return desc.elements().iterator().next().displayName();
   }
 
@@ -436,6 +508,9 @@ public final class AbilityBindGui implements InventoryHolder {
   }
 
   private Material materialForAbility(AbilityDescription desc) {
+    if (desc.elements().size() > 1) {
+      return Material.NETHER_STAR;
+    }
     if (!desc.elements().isEmpty()) {
       return materialForElement(desc.elements().iterator().next());
     }
