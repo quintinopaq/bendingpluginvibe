@@ -74,7 +74,7 @@ public class GlacialBlizzard extends AbilityInstance {
     removalPolicy = Policies.defaults();
 
     Sound.BLOCK_GLASS_BREAK.asEffect(1.2f, 0.6f).play(user.world(), center);
-    SoundEffect.ICE_CRACK.play(user.world(), center);
+    SoundEffect.ICE.play(user.world(), center);
     return true;
   }
 
@@ -117,11 +117,10 @@ public class GlacialBlizzard extends AbilityInstance {
       Sound.BLOCK_SNOW_STEP.asEffect(1.0f, 0.8f).play(user.world(), center);
     }
 
-    AABB hitBox = AABB.of(center, currentRadius);
-    for (LivingEntity target : user.world().nearbyLivingEntities(hitBox)) {
-      if (!target.equals(user) && frozenEntities.add(target.uuid())) {
+    for (Entity e : user.world().nearbyEntities(center, currentRadius)) {
+      if (e instanceof LivingEntity target && !target.equals(user) && frozenEntities.add(target.uuid())) {
         target.damage(userConfig.damage, user, description());
-        BendingEffect.FROST_TICK.apply(target, userConfig.frostTicks);
+        BendingEffect.FROST_TICK.apply(user, target, userConfig.frostTicks);
         Vector3d push = target.center().subtract(center).normalize().multiply(userConfig.knockback).add(0, 0.3, 0);
         target.applyVelocity(this, push);
 
@@ -130,7 +129,7 @@ public class GlacialBlizzard extends AbilityInstance {
         if (!targetFloor.type().isSolid()) {
           TempBlock.ice().duration(userConfig.iceDuration).build(targetFloor);
         }
-        SoundEffect.ICE_CRACK.play(user.world(), target.center());
+        SoundEffect.ICE.play(user.world(), target.center());
       }
     }
 
@@ -139,7 +138,8 @@ public class GlacialBlizzard extends AbilityInstance {
 
   @Override
   public Collection<Collider> colliders() {
-    return List.of(AABB.of(center, currentRadius));
+    double r = currentRadius;
+    return List.of(AABB.of(center.subtract(r, r, r), center.add(r, r, r)));
   }
 
   private static final class Config implements Configurable {
@@ -151,7 +151,7 @@ public class GlacialBlizzard extends AbilityInstance {
     private double maxRadius = 9.0;
     @Modifiable(Attribute.SPEED)
     private double expansionSpeed = 0.65;
-    @Modifiable(Attribute.KNOCKBACK)
+    @Modifiable(Attribute.STRENGTH)
     private double knockback = 0.9;
     @Modifiable(Attribute.DURATION)
     private long iceDuration = 4500;

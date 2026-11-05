@@ -35,15 +35,14 @@ import me.moros.bending.api.collision.geometry.Collider;
 import me.moros.bending.api.config.Configurable;
 import me.moros.bending.api.config.attribute.Attribute;
 import me.moros.bending.api.config.attribute.Modifiable;
-import me.moros.bending.api.platform.block.Block;
 import me.moros.bending.api.platform.entity.Entity;
 import me.moros.bending.api.platform.entity.LivingEntity;
 import me.moros.bending.api.platform.particle.Particle;
 import me.moros.bending.api.platform.potion.PotionEffect;
 import me.moros.bending.api.platform.sound.Sound;
-import me.moros.bending.api.platform.sound.SoundEffect;
 import me.moros.bending.api.user.User;
 import me.moros.bending.api.util.BendingEffect;
+import me.moros.bending.api.util.entity.EntityUtil;
 import me.moros.bending.api.util.functional.Policies;
 import me.moros.bending.api.util.functional.RemovalPolicy;
 import me.moros.math.Vector3d;
@@ -67,7 +66,7 @@ public class VaporBlast extends AbilityInstance {
     this.user = user;
     loadConfig();
 
-    this.origin = user.eyePosition();
+    this.origin = user.eyeLocation();
     this.direction = user.direction();
     this.distance = 0;
 
@@ -114,12 +113,11 @@ public class VaporBlast extends AbilityInstance {
       }
     }
 
-    AABB hitBox = AABB.of(center, coneRadius);
-    for (LivingEntity target : user.world().nearbyLivingEntities(hitBox)) {
-      if (!target.equals(user) && scaldedEntities.add(target.uuid())) {
+    for (Entity e : user.world().nearbyEntities(center, coneRadius)) {
+      if (e instanceof LivingEntity target && !target.equals(user) && scaldedEntities.add(target.uuid())) {
         target.damage(userConfig.damage, user, description());
-        BendingEffect.FIRE_TICK.apply(target, userConfig.scaldTicks);
-        target.addPotionEffect(PotionEffect.BLINDNESS, 60, 1);
+        BendingEffect.FIRE_TICK.apply(user, target, userConfig.scaldTicks);
+        EntityUtil.tryAddPotion(target, PotionEffect.BLINDNESS, 60, 0);
         Vector3d push = direction.multiply(userConfig.pushStrength).add(0, 0.25, 0);
         target.applyVelocity(this, push);
         Sound.BLOCK_LAVA_EXTINGUISH.asEffect(1.0f, 1.2f).play(user.world(), target.center());
@@ -131,7 +129,9 @@ public class VaporBlast extends AbilityInstance {
 
   @Override
   public Collection<Collider> colliders() {
-    return List.of(AABB.of(origin.add(direction.multiply(distance)), userConfig.maxRadius));
+    Vector3d center = origin.add(direction.multiply(distance));
+    double r = userConfig.maxRadius;
+    return List.of(AABB.of(center.subtract(r, r, r), center.add(r, r, r)));
   }
 
   private static final class Config implements Configurable {
@@ -145,7 +145,7 @@ public class VaporBlast extends AbilityInstance {
     private double maxRadius = 3.5;
     @Modifiable(Attribute.SPEED)
     private double speed = 1.4;
-    @Modifiable(Attribute.KNOCKBACK)
+    @Modifiable(Attribute.STRENGTH)
     private double pushStrength = 1.1;
     @Modifiable(Attribute.FIRE_TICKS)
     private int scaldTicks = 60;

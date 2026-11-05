@@ -68,7 +68,7 @@ public class FireVortex extends AbilityInstance {
     this.user = user;
     loadConfig();
 
-    this.location = user.eyePosition().add(user.direction().multiply(2.0));
+    this.location = user.eyeLocation().add(user.direction().multiply(2.0));
     this.direction = user.direction().multiply(1, 0, 1).normalize();
     this.startTime = System.currentTimeMillis();
 
@@ -76,7 +76,7 @@ public class FireVortex extends AbilityInstance {
     removalPolicy = Policies.defaults();
 
     Sound.ITEM_FIRECHARGE_USE.asEffect(1.2f, 0.8f).play(user.world(), location);
-    SoundEffect.AIR_BURST.play(user.world(), location);
+    SoundEffect.AIR.play(user.world(), location);
     return true;
   }
 
@@ -101,7 +101,7 @@ public class FireVortex extends AbilityInstance {
     location = location.add(direction.multiply(userConfig.speed));
 
     Block block = user.world().blockAt(location);
-    TempLight.create(14, 250).build(block);
+    TempLight.builder(14).duration(250).build(block);
 
     angle += Math.PI / 4.0;
 
@@ -114,7 +114,7 @@ public class FireVortex extends AbilityInstance {
       Vector3d flame1 = location.add(Math.cos(theta1) * r, y * 0.7, Math.sin(theta1) * r);
       Vector3d flame2 = location.add(Math.cos(theta2) * r, y * 0.7, Math.sin(theta2) * r);
 
-      ParticleBuilder.flame(flame1).count(2).offset(0.1).spawn(user.world());
+      ParticleBuilder.fire(user, flame1).count(2).offset(0.1).spawn(user.world());
       ParticleBuilder.air(flame2).count(2).offset(0.1).spawn(user.world());
 
       if (ThreadLocalRandom.current().nextInt(3) == 0) {
@@ -124,18 +124,18 @@ public class FireVortex extends AbilityInstance {
     }
 
     if (ThreadLocalRandom.current().nextInt(4) == 0) {
-      SoundEffect.FIRE_BURST.play(user.world(), location);
+      SoundEffect.FIRE.play(user.world(), location);
     }
 
     // Pull entities in and launch up while burning
-    AABB suctionBox = AABB.of(location.add(0, userConfig.height * 0.35, 0), userConfig.radius + 1.5);
-    for (LivingEntity target : user.world().nearbyLivingEntities(suctionBox)) {
-      if (!target.equals(user)) {
+    Vector3d suctionCenter = location.add(0, userConfig.height * 0.35, 0);
+    for (Entity e : user.world().nearbyEntities(suctionCenter, userConfig.radius + 1.5)) {
+      if (e instanceof LivingEntity target && !target.equals(user)) {
         Vector3d toCenter = location.subtract(target.center());
         Vector3d pull = toCenter.multiply(0.25).add(0, 0.35, 0);
         target.applyVelocity(this, pull);
         target.damage(userConfig.damagePerSecond * 0.05, user, description());
-        BendingEffect.FIRE_TICK.apply(target, 40);
+        BendingEffect.FIRE_TICK.apply(user, target, 40);
         caughtEntities.add(target.uuid());
       }
     }
@@ -146,13 +146,13 @@ public class FireVortex extends AbilityInstance {
   private void detonate() {
     Sound.ENTITY_GENERIC_EXPLODE.asEffect(1.2f, 0.9f).play(user.world(), location);
     Particle.EXPLOSION.builder(location.add(0, 2.0, 0)).count(3).spawn(user.world());
-    ParticleBuilder.flame(location.add(0, 2.0, 0)).count(40).offset(1.2).speed(0.2).spawn(user.world());
+    ParticleBuilder.fire(user, location.add(0, 2.0, 0)).count(40).offset(1.2).speed(0.2).spawn(user.world());
 
-    AABB explodeBox = AABB.of(location.add(0, 2.0, 0), userConfig.radius + 2.0);
-    for (LivingEntity target : user.world().nearbyLivingEntities(explodeBox)) {
-      if (!target.equals(user)) {
+    Vector3d explodeCenter = location.add(0, 2.0, 0);
+    for (Entity e : user.world().nearbyEntities(explodeCenter, userConfig.radius + 2.0)) {
+      if (e instanceof LivingEntity target && !target.equals(user)) {
         target.damage(userConfig.detonationDamage, user, description());
-        BendingEffect.FIRE_TICK.apply(target, 80);
+        BendingEffect.FIRE_TICK.apply(user, target, 80);
         Vector3d fling = target.center().subtract(location).normalize().multiply(1.3).add(0, 0.5, 0);
         target.applyVelocity(this, fling);
       }
@@ -161,7 +161,9 @@ public class FireVortex extends AbilityInstance {
 
   @Override
   public Collection<Collider> colliders() {
-    return List.of(AABB.of(location.add(0, userConfig.height * 0.35, 0), userConfig.radius));
+    Vector3d center = location.add(0, userConfig.height * 0.35, 0);
+    double r = userConfig.radius;
+    return List.of(AABB.of(center.subtract(r, r, r), center.add(r, r, r)));
   }
 
   private static final class Config implements Configurable {

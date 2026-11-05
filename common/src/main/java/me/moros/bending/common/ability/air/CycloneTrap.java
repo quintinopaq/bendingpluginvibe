@@ -67,7 +67,7 @@ public class CycloneTrap extends AbilityInstance {
   public boolean activate(User user, Activation method) {
     this.user = user;
     loadConfig();
-    this.location = user.eyePosition();
+    this.location = user.eyeLocation();
     this.velocity = user.direction().multiply(userConfig.speed);
     this.active = false;
     this.startTime = System.currentTimeMillis();
@@ -100,14 +100,13 @@ public class CycloneTrap extends AbilityInstance {
       location = location.add(velocity);
       ParticleBuilder.air(location).count(3).offset(0.15).spawn(user.world());
 
-      if (user.world().blockAt(location).type().isSolid() || location.distanceSq(user.eyePosition()) >= userConfig.range * userConfig.range) {
+      if (user.world().blockAt(location).type().isSolid() || location.distanceSq(user.eyeLocation()) >= userConfig.range * userConfig.range) {
         active = true;
         startTime = now;
         Sound.ENTITY_BREEZE_WIND_BURST.asEffect(1.0f, 1.2f).play(user.world(), location);
       } else {
-        AABB aabb = AABB.of(location, 1.0);
-        for (LivingEntity target : user.world().nearbyLivingEntities(aabb)) {
-          if (!target.equals(user)) {
+        for (Entity e : user.world().nearbyEntities(location, 1.0)) {
+          if (e instanceof LivingEntity target && !target.equals(user)) {
             active = true;
             startTime = now;
             Sound.ENTITY_BREEZE_WIND_BURST.asEffect(1.0f, 1.2f).play(user.world(), location);
@@ -141,16 +140,15 @@ public class CycloneTrap extends AbilityInstance {
       SoundEffect.AIR_FAST.play(user.world(), location);
     }
 
-    AABB vortexBox = AABB.of(location.add(0, userConfig.height * 0.3, 0), currentRadius + 1.0);
-    for (LivingEntity entity : user.world().nearbyLivingEntities(vortexBox)) {
-      if (entity.equals(user)) {
-        continue;
+    Vector3d vortexCenter = location.add(0, userConfig.height * 0.3, 0);
+    for (Entity e : user.world().nearbyEntities(vortexCenter, currentRadius + 1.0)) {
+      if (e instanceof LivingEntity entity && !entity.equals(user)) {
+        Vector3d toCenter = location.subtract(entity.center());
+        Vector3d pull = toCenter.multiply(0.2).add(0, 0.25, 0);
+        entity.applyVelocity(this, pull);
+        entity.damage(userConfig.damagePerSecond * 0.05, user, description());
+        caughtEntities.add(entity.uuid());
       }
-      Vector3d toCenter = location.subtract(entity.center());
-      Vector3d pull = toCenter.multiply(0.2).add(0, 0.25, 0);
-      entity.applyVelocity(this, pull);
-      entity.damage(userConfig.damagePerSecond * 0.05, user, description());
-      caughtEntities.add(entity.uuid());
     }
 
     return UpdateResult.CONTINUE;
@@ -160,14 +158,12 @@ public class CycloneTrap extends AbilityInstance {
     Sound.ENTITY_PHANTOM_FLAP.asEffect(1.2f, 0.8f).play(user.world(), location);
     Particle.EXPLOSION.builder(location.add(0, 1.0, 0)).count(2).spawn(user.world());
     for (int i = 0; i < 20; i++) {
-      double a = i * (Math.PI / 10.0);
-      Vector3d dir = Vector3d.of(Math.cos(a), 0.3, Math.sin(a));
       ParticleBuilder.air(location.add(0, 1.0, 0)).count(3).offset(0.2).speed(0.3).spawn(user.world());
     }
 
-    AABB burstBox = AABB.of(location.add(0, 1.0, 0), currentRadius + 1.5);
-    for (LivingEntity target : user.world().nearbyLivingEntities(burstBox)) {
-      if (!target.equals(user)) {
+    Vector3d burstCenter = location.add(0, 1.0, 0);
+    for (Entity e : user.world().nearbyEntities(burstCenter, currentRadius + 1.5)) {
+      if (e instanceof LivingEntity target && !target.equals(user)) {
         Vector3d fling = target.center().subtract(location).normalize().multiply(1.2).add(0, 0.4, 0);
         target.applyVelocity(this, fling);
         target.damage(userConfig.detonationDamage, user, description());
@@ -177,7 +173,8 @@ public class CycloneTrap extends AbilityInstance {
 
   @Override
   public Collection<Collider> colliders() {
-    return List.of(AABB.of(location, active ? currentRadius : 0.8));
+    double r = active ? currentRadius : 0.8;
+    return List.of(AABB.of(location.subtract(r, r, r), location.add(r, r, r)));
   }
 
   private static final class Config implements Configurable {
@@ -204,4 +201,3 @@ public class CycloneTrap extends AbilityInstance {
     }
   }
 }
-

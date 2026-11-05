@@ -40,12 +40,10 @@ import me.moros.bending.api.platform.entity.LivingEntity;
 import me.moros.bending.api.platform.particle.Particle;
 import me.moros.bending.api.platform.sound.Sound;
 import me.moros.bending.api.platform.sound.SoundEffect;
-import me.moros.bending.api.temporal.TempBlock;
 import me.moros.bending.api.user.User;
 import me.moros.bending.api.util.functional.Policies;
 import me.moros.bending.api.util.functional.RemovalPolicy;
 import me.moros.bending.api.util.functional.SwappedSlotsRemovalPolicy;
-import me.moros.bending.api.util.material.MaterialUtil;
 import me.moros.math.Vector3d;
 import org.spongepowered.configurate.objectmapping.meta.Comment;
 
@@ -87,7 +85,7 @@ public class WaterWhip extends AbilityInstance {
     if (method == Activation.ATTACK) {
       lash();
     } else {
-      SoundEffect.WATER_SPLASH.play(user.world(), user.eyePosition());
+      SoundEffect.WATER.play(user.world(), user.eyeLocation());
     }
     return true;
   }
@@ -101,8 +99,8 @@ public class WaterWhip extends AbilityInstance {
     this.extended = true;
     this.lashDirection = user.direction();
     user.addCooldown(description(), userConfig.cooldown);
-    Sound.ENTITY_PLAYER_ATTACK_SWEEP.asEffect(1.0f, 1.4f).play(user.world(), user.eyePosition());
-    SoundEffect.WATER_SPLASH.play(user.world(), user.eyePosition());
+    Sound.ENTITY_PLAYER_ATTACK_SWEEP.asEffect(1.0f, 1.4f).play(user.world(), user.eyeLocation());
+    SoundEffect.WATER.play(user.world(), user.eyeLocation());
   }
 
   @Override
@@ -146,16 +144,15 @@ public class WaterWhip extends AbilityInstance {
       Block block = user.world().blockAt(point);
       if (block.type().isSolid()) {
         Particle.SPLASH.builder(point).count(10).offset(0.3).speed(0.1).spawn(user.world());
-        SoundEffect.WATER_SPLASH.play(user.world(), point);
+        SoundEffect.WATER.play(user.world(), point);
         return UpdateResult.REMOVE;
       }
 
-      AABB hitBox = AABB.of(point, 0.8);
-      for (LivingEntity target : user.world().nearbyLivingEntities(hitBox)) {
-        if (!target.equals(user) && hitEntities.add(target.uuid())) {
+      for (Entity e : user.world().nearbyEntities(point, 0.8)) {
+        if (e instanceof LivingEntity target && !target.equals(user) && hitEntities.add(target.uuid())) {
           target.damage(userConfig.damage, user, description());
           Sound.ENTITY_PLAYER_ATTACK_CRIT.asEffect(1.0f, 1.2f).play(user.world(), target.center());
-          SoundEffect.WATER_SPLASH.play(user.world(), target.center());
+          SoundEffect.WATER.play(user.world(), target.center());
 
           if (user.sneaking()) {
             // Drag toward the user
@@ -176,7 +173,7 @@ public class WaterWhip extends AbilityInstance {
 
   @Override
   public Collection<Collider> colliders() {
-    return whipPoints.stream().map(p -> (Collider) AABB.of(p, 0.5)).toList();
+    return whipPoints.stream().map(p -> (Collider) AABB.of(p.subtract(0.5, 0.5, 0.5), p.add(0.5, 0.5, 0.5))).toList();
   }
 
   private static final class Config implements Configurable {
@@ -190,7 +187,7 @@ public class WaterWhip extends AbilityInstance {
     private double speed = 1.6;
     @Modifiable(Attribute.STRENGTH)
     private double pullStrength = 1.2;
-    @Modifiable(Attribute.KNOCKBACK)
+    @Modifiable(Attribute.STRENGTH)
     private double knockbackStrength = 0.9;
 
     @Override

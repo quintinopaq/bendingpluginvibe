@@ -45,6 +45,7 @@ import me.moros.bending.api.platform.sound.Sound;
 import me.moros.bending.api.platform.sound.SoundEffect;
 import me.moros.bending.api.temporal.TempBlock;
 import me.moros.bending.api.user.User;
+import me.moros.bending.api.util.entity.EntityUtil;
 import me.moros.bending.api.util.functional.Policies;
 import me.moros.bending.api.util.functional.RemovalPolicy;
 import me.moros.math.Vector3d;
@@ -68,7 +69,7 @@ public class MudSurge extends AbilityInstance {
     this.user = user;
     loadConfig();
 
-    this.location = user.eyePosition().subtract(0, 1.0, 0);
+    this.location = user.eyeLocation().subtract(0, 1.0, 0);
     this.direction = user.direction().multiply(1, 0, 1).normalize();
     this.distance = 0;
 
@@ -76,7 +77,7 @@ public class MudSurge extends AbilityInstance {
     removalPolicy = Policies.defaults();
 
     Sound.BLOCK_SLIME_BLOCK_BREAK.asEffect(1.2f, 0.6f).play(user.world(), location);
-    SoundEffect.WATER_SPLASH.play(user.world(), location);
+    SoundEffect.WATER.play(user.world(), location);
     return true;
   }
 
@@ -104,7 +105,7 @@ public class MudSurge extends AbilityInstance {
       for (int i = 0; i < 4; i++) {
         Block down = user.world().blockAt(location.subtract(0, i, 0));
         if (down.type().isSolid()) {
-          location = down.location().toVector3d().add(0.5, 1.0, 0.5);
+          location = down.toVector3d().add(0.5, 1.0, 0.5);
           break;
         }
       }
@@ -112,7 +113,7 @@ public class MudSurge extends AbilityInstance {
       for (int i = 0; i < 4; i++) {
         Block up = user.world().blockAt(location.add(0, i, 0));
         if (!up.type().isSolid()) {
-          location = up.location().toVector3d().add(0.5, 0.0, 0.5);
+          location = up.toVector3d().add(0.5, 0.0, 0.5);
           break;
         }
       }
@@ -127,7 +128,7 @@ public class MudSurge extends AbilityInstance {
 
       Block surface = user.world().blockAt(pt.subtract(0, 0.5, 0));
       if (surface.type().isSolid()) {
-        TempBlock.block(BlockType.MUD).duration(userConfig.mudDuration).build(surface);
+        TempBlock.builder(BlockType.MUD).duration(userConfig.mudDuration).build(surface);
       }
     }
 
@@ -135,11 +136,10 @@ public class MudSurge extends AbilityInstance {
       Sound.BLOCK_SLIME_BLOCK_STEP.asEffect(1.0f, 0.7f).play(user.world(), location);
     }
 
-    AABB waveBox = AABB.of(location, userConfig.waveWidth);
-    for (LivingEntity target : user.world().nearbyLivingEntities(waveBox)) {
-      if (!target.equals(user) && hitEntities.add(target.uuid())) {
+    for (Entity e : user.world().nearbyEntities(location, userConfig.waveWidth)) {
+      if (e instanceof LivingEntity target && !target.equals(user) && hitEntities.add(target.uuid())) {
         target.damage(userConfig.damage, user, description());
-        target.addPotionEffect(PotionEffect.SLOWNESS, userConfig.slownessDuration, 3);
+        EntityUtil.tryAddPotion(target, PotionEffect.SLOWNESS, userConfig.slownessDuration, 3);
         Vector3d push = direction.multiply(userConfig.pushStrength).add(0, 0.15, 0);
         target.applyVelocity(this, push);
         Sound.BLOCK_SLIME_BLOCK_BREAK.asEffect(1.0f, 0.8f).play(user.world(), target.center());
@@ -151,7 +151,8 @@ public class MudSurge extends AbilityInstance {
 
   @Override
   public Collection<Collider> colliders() {
-    return List.of(AABB.of(location, userConfig.waveWidth));
+    double r = userConfig.waveWidth;
+    return List.of(AABB.of(location.subtract(r, r, r), location.add(r, r, r)));
   }
 
   private static final class Config implements Configurable {
@@ -165,7 +166,7 @@ public class MudSurge extends AbilityInstance {
     private double speed = 0.95;
     @Modifiable(Attribute.RADIUS)
     private double waveWidth = 2.4;
-    @Modifiable(Attribute.KNOCKBACK)
+    @Modifiable(Attribute.STRENGTH)
     private double pushStrength = 0.85;
     @Modifiable(Attribute.DURATION)
     private long mudDuration = 5000;

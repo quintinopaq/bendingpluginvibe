@@ -45,7 +45,6 @@ import me.moros.bending.api.user.User;
 import me.moros.bending.api.util.functional.Policies;
 import me.moros.bending.api.util.functional.RemovalPolicy;
 import me.moros.bending.api.util.functional.SwappedSlotsRemovalPolicy;
-import me.moros.bending.api.util.material.MaterialUtil;
 import me.moros.math.Vector3d;
 import org.spongepowered.configurate.objectmapping.meta.Comment;
 
@@ -74,12 +73,12 @@ public class BoulderToss extends AbilityInstance {
       }
     }
 
-    Vector3d eye = user.eyePosition();
+    Vector3d eye = user.eyeLocation();
     Vector3d groundCheck = eye.subtract(0, 1.5, 0);
     Block block = user.world().blockAt(groundCheck);
-    if (!MaterialUtil.isEarth(block)) {
+    if (!EarthMaterials.isEarthbendable(user, block)) {
       Block under = user.world().blockAt(groundCheck.subtract(0, 1.0, 0));
-      if (!MaterialUtil.isEarth(under)) {
+      if (!EarthMaterials.isEarthbendable(user, under)) {
         return false;
       }
     }
@@ -93,7 +92,7 @@ public class BoulderToss extends AbilityInstance {
       .build();
 
     Sound.BLOCK_STONE_BREAK.asEffect(1.0f, 0.8f).play(user.world(), location);
-    SoundEffect.EARTH_DIG.play(user.world(), location);
+    SoundEffect.EARTH.play(user.world(), location);
     BlockType.STONE.asParticle(location).count(15).offset(0.4).spawn(user.world());
 
     if (method == Activation.ATTACK) {
@@ -109,7 +108,7 @@ public class BoulderToss extends AbilityInstance {
 
   public void launch() {
     this.thrown = true;
-    this.location = user.eyePosition().add(user.direction().multiply(1.2));
+    this.location = user.eyeLocation().add(user.direction().multiply(1.2));
     this.velocity = user.direction().multiply(userConfig.speed);
     user.addCooldown(description(), userConfig.cooldown);
     Sound.ENTITY_ARROW_SHOOT.asEffect(1.2f, 0.6f).play(user.world(), location);
@@ -127,7 +126,7 @@ public class BoulderToss extends AbilityInstance {
         launch();
         return UpdateResult.CONTINUE;
       }
-      location = user.eyePosition().add(user.direction().multiply(1.8));
+      location = user.eyeLocation().add(user.direction().multiply(1.8));
       BlockType.COBBLESTONE.asParticle(location).count(6).offset(0.3).spawn(user.world());
       BlockType.STONE.asParticle(location).count(4).offset(0.2).spawn(user.world());
       return UpdateResult.CONTINUE;
@@ -140,7 +139,7 @@ public class BoulderToss extends AbilityInstance {
     BlockType.STONE.asParticle(location).count(8).offset(0.35).spawn(user.world());
     BlockType.COBBLESTONE.asParticle(location).count(5).offset(0.25).spawn(user.world());
 
-    if (location.distanceSq(user.eyePosition()) > userConfig.range * userConfig.range) {
+    if (location.distanceSq(user.eyeLocation()) > userConfig.range * userConfig.range) {
       explode();
       return UpdateResult.REMOVE;
     }
@@ -151,9 +150,8 @@ public class BoulderToss extends AbilityInstance {
       return UpdateResult.REMOVE;
     }
 
-    AABB hitBox = AABB.of(location, userConfig.hitboxRadius);
-    for (LivingEntity target : user.world().nearbyLivingEntities(hitBox)) {
-      if (!target.equals(user) && hitEntities.add(target.uuid())) {
+    for (Entity e : user.world().nearbyEntities(location, userConfig.hitboxRadius)) {
+      if (e instanceof LivingEntity target && !target.equals(user) && hitEntities.add(target.uuid())) {
         explode();
         return UpdateResult.REMOVE;
       }
@@ -164,14 +162,13 @@ public class BoulderToss extends AbilityInstance {
 
   private void explode() {
     Sound.BLOCK_STONE_BREAK.asEffect(1.5f, 0.7f).play(user.world(), location);
-    SoundEffect.EARTH_CRACK.play(user.world(), location);
+    SoundEffect.EARTH.play(user.world(), location);
     Particle.EXPLOSION.builder(location).count(1).spawn(user.world());
     BlockType.STONE.asParticle(location).count(30).offset(0.6).speed(0.15).spawn(user.world());
     BlockType.COBBLESTONE.asParticle(location).count(20).offset(0.5).speed(0.12).spawn(user.world());
 
-    AABB aoeBox = AABB.of(location, userConfig.aoeRadius);
-    for (LivingEntity target : user.world().nearbyLivingEntities(aoeBox)) {
-      if (!target.equals(user)) {
+    for (Entity e : user.world().nearbyEntities(location, userConfig.aoeRadius)) {
+      if (e instanceof LivingEntity target && !target.equals(user)) {
         double dist = target.center().distance(location);
         double damage = Math.max(1.0, userConfig.damage * (1.0 - (dist / (userConfig.aoeRadius + 1.0))));
         target.damage(damage, user, description());
@@ -183,7 +180,8 @@ public class BoulderToss extends AbilityInstance {
 
   @Override
   public Collection<Collider> colliders() {
-    return List.of(AABB.of(location, userConfig.hitboxRadius));
+    double hr = userConfig.hitboxRadius;
+    return List.of(AABB.of(location.subtract(hr, hr, hr), location.add(hr, hr, hr)));
   }
 
   private static final class Config implements Configurable {
@@ -195,7 +193,7 @@ public class BoulderToss extends AbilityInstance {
     private double range = 24.0;
     @Modifiable(Attribute.SPEED)
     private double speed = 1.35;
-    @Modifiable(Attribute.KNOCKBACK)
+    @Modifiable(Attribute.STRENGTH)
     private double knockback = 0.85;
     @Modifiable(Attribute.RADIUS)
     private double aoeRadius = 3.2;

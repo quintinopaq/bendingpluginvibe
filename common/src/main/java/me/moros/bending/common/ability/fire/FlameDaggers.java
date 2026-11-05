@@ -40,7 +40,6 @@ import me.moros.bending.api.platform.entity.Entity;
 import me.moros.bending.api.platform.entity.LivingEntity;
 import me.moros.bending.api.platform.particle.Particle;
 import me.moros.bending.api.platform.particle.ParticleBuilder;
-import me.moros.bending.api.platform.potion.PotionEffect;
 import me.moros.bending.api.platform.sound.Sound;
 import me.moros.bending.api.platform.sound.SoundEffect;
 import me.moros.bending.api.temporal.TempLight;
@@ -87,8 +86,8 @@ public class FlameDaggers extends AbilityInstance {
       .add(Policies.UNDER_WATER)
       .build();
 
-    Sound.ITEM_FIRECHARGE_USE.asEffect(1.0f, 1.4f).play(user.world(), user.eyePosition());
-    SoundEffect.FIRE_BURST.play(user.world(), user.eyePosition());
+    Sound.ITEM_FIRECHARGE_USE.asEffect(1.0f, 1.4f).play(user.world(), user.eyeLocation());
+    SoundEffect.FIRE.play(user.world(), user.eyeLocation());
     return true;
   }
 
@@ -99,7 +98,7 @@ public class FlameDaggers extends AbilityInstance {
 
   public void launchCrossSlash() {
     this.crossSlashActive = true;
-    this.crossSlashLoc = user.eyePosition().add(user.direction().multiply(1.2));
+    this.crossSlashLoc = user.eyeLocation().add(user.direction().multiply(1.2));
     this.crossSlashDir = user.direction();
     this.distanceTraveled = 0;
     user.addCooldown(description(), userConfig.cooldown);
@@ -123,22 +122,22 @@ public class FlameDaggers extends AbilityInstance {
 
       // Render glowing flame blades at hands
       Vector3d rightHand = user.mainHandSide();
-      Vector3d leftHand = user.offHandSide();
+      Vector3d leftHand = user.leftSide();
 
-      ParticleBuilder.flame(rightHand).count(2).offset(0.05).speed(0.01).spawn(user.world());
-      ParticleBuilder.flame(leftHand).count(2).offset(0.05).speed(0.01).spawn(user.world());
+      ParticleBuilder.fire(user, rightHand).count(2).offset(0.05).speed(0.01).spawn(user.world());
+      ParticleBuilder.fire(user, leftHand).count(2).offset(0.05).speed(0.01).spawn(user.world());
       if (ThreadLocalRandom.current().nextInt(3) == 0) {
         Particle.SOUL_FIRE_FLAME.builder(rightHand).count(1).offset(0.02).spawn(user.world());
         Particle.SOUL_FIRE_FLAME.builder(leftHand).count(1).offset(0.02).spawn(user.world());
       }
 
       // Proximity melee slash check
-      AABB meleeBox = AABB.of(user.eyePosition().add(user.direction().multiply(1.2)), 1.2);
-      for (LivingEntity target : user.world().nearbyLivingEntities(meleeBox)) {
-        if (!target.equals(user) && slashedEntities.add(target.uuid())) {
+      Vector3d meleePos = user.eyeLocation().add(user.direction().multiply(1.2));
+      for (Entity e : user.world().nearbyEntities(meleePos, 1.2)) {
+        if (e instanceof LivingEntity target && !target.equals(user) && slashedEntities.add(target.uuid())) {
           target.damage(userConfig.meleeDamage, user, description());
-          BendingEffect.FIRE_TICK.apply(target, userConfig.fireTicks);
-          SoundEffect.FIRE_IGNITE.play(user.world(), target.center());
+          BendingEffect.FIRE_TICK.apply(user, target, userConfig.fireTicks);
+          SoundEffect.FIRE.play(user.world(), target.center());
           Particle.LAVA.builder(target.center()).count(3).spawn(user.world());
         }
       }
@@ -156,11 +155,11 @@ public class FlameDaggers extends AbilityInstance {
 
     Block block = user.world().blockAt(crossSlashLoc);
     if (block.type().isSolid()) {
-      ParticleBuilder.flame(crossSlashLoc).count(10).offset(0.3).speed(0.1).spawn(user.world());
+      ParticleBuilder.fire(user, crossSlashLoc).count(10).offset(0.3).speed(0.1).spawn(user.world());
       return UpdateResult.REMOVE;
     }
 
-    TempLight.create(13, 200).build(block);
+    TempLight.builder(13).duration(200).build(block);
 
     // Cross X pattern
     Vector3d right = crossSlashDir.cross(Vector3d.PLUS_J).normalize();
@@ -169,15 +168,14 @@ public class FlameDaggers extends AbilityInstance {
     for (double i = -span; i <= span; i += 0.3) {
       Vector3d p1 = crossSlashLoc.add(right.multiply(i)).add(up.multiply(i));
       Vector3d p2 = crossSlashLoc.add(right.multiply(i)).add(up.multiply(-i));
-      ParticleBuilder.flame(p1).count(1).offset(0.02).spawn(user.world());
-      ParticleBuilder.flame(p2).count(1).offset(0.02).spawn(user.world());
+      ParticleBuilder.fire(user, p1).count(1).offset(0.02).spawn(user.world());
+      ParticleBuilder.fire(user, p2).count(1).offset(0.02).spawn(user.world());
     }
 
-    AABB hitBox = AABB.of(crossSlashLoc, 1.2);
-    for (LivingEntity target : user.world().nearbyLivingEntities(hitBox)) {
-      if (!target.equals(user) && slashedEntities.add(target.uuid())) {
+    for (Entity e : user.world().nearbyEntities(crossSlashLoc, 1.2)) {
+      if (e instanceof LivingEntity target && !target.equals(user) && slashedEntities.add(target.uuid())) {
         target.damage(userConfig.crossSlashDamage, user, description());
-        BendingEffect.FIRE_TICK.apply(target, userConfig.fireTicks * 2);
+        BendingEffect.FIRE_TICK.apply(user, target, userConfig.fireTicks * 2);
         target.applyVelocity(this, crossSlashDir.multiply(0.7).add(0, 0.2, 0));
         Sound.ENTITY_PLAYER_ATTACK_CRIT.asEffect(1.0f, 1.1f).play(user.world(), target.center());
         Particle.LAVA.builder(target.center()).count(6).spawn(user.world());
@@ -189,7 +187,8 @@ public class FlameDaggers extends AbilityInstance {
 
   @Override
   public Collection<Collider> colliders() {
-    return List.of(AABB.of(crossSlashActive ? crossSlashLoc : user.eyePosition(), 1.0));
+    Vector3d center = crossSlashActive ? crossSlashLoc : user.eyeLocation();
+    return List.of(AABB.of(center.subtract(1.0, 1.0, 1.0), center.add(1.0, 1.0, 1.0)));
   }
 
   private static final class Config implements Configurable {

@@ -71,7 +71,7 @@ public class VolcanicFissure extends AbilityInstance {
     this.user = user;
     loadConfig();
 
-    this.location = user.eyePosition().subtract(0, 1.2, 0);
+    this.location = user.eyeLocation().subtract(0, 1.2, 0);
     this.direction = user.direction().multiply(1, 0, 1).normalize();
     this.distance = 0;
 
@@ -79,8 +79,8 @@ public class VolcanicFissure extends AbilityInstance {
     removalPolicy = Policies.defaults();
 
     Sound.BLOCK_STONE_BREAK.asEffect(1.2f, 0.6f).play(user.world(), location);
-    SoundEffect.EARTH_CRACK.play(user.world(), location);
-    SoundEffect.FIRE_BURST.play(user.world(), location);
+    SoundEffect.EARTH.play(user.world(), location);
+    SoundEffect.FIRE.play(user.world(), location);
     return true;
   }
 
@@ -108,7 +108,7 @@ public class VolcanicFissure extends AbilityInstance {
       for (int i = 0; i < 4; i++) {
         Block down = user.world().blockAt(location.subtract(0, i, 0));
         if (down.type().isSolid()) {
-          location = down.location().toVector3d().add(0.5, 1.0, 0.5);
+          location = down.toVector3d().add(0.5, 1.0, 0.5);
           break;
         }
       }
@@ -116,7 +116,7 @@ public class VolcanicFissure extends AbilityInstance {
       for (int i = 0; i < 4; i++) {
         Block up = user.world().blockAt(location.add(0, i, 0));
         if (!up.type().isSolid()) {
-          location = up.location().toVector3d().add(0.5, 0.0, 0.5);
+          location = up.toVector3d().add(0.5, 0.0, 0.5);
           break;
         }
       }
@@ -126,26 +126,25 @@ public class VolcanicFissure extends AbilityInstance {
 
     Block blockUnder = user.world().blockAt(location.subtract(0, 0.5, 0));
     if (blockUnder.type().isSolid()) {
-      TempBlock.block(BlockType.MAGMA_BLOCK).duration(userConfig.lavaDuration).build(blockUnder);
+      TempBlock.builder(BlockType.MAGMA_BLOCK).duration(userConfig.lavaDuration).build(blockUnder);
     }
 
     Block airBlock = user.world().blockAt(location);
-    TempLight.create(15, 300).build(airBlock);
+    TempLight.builder(15).duration(300).build(airBlock);
 
     // Volcanic eruption effects
     Particle.LAVA.builder(location).count(6).offset(0.3).spawn(user.world());
-    ParticleBuilder.flame(location).count(8).offset(0.4).speed(0.1).spawn(user.world());
+    ParticleBuilder.fire(user, location).count(8).offset(0.4).speed(0.1).spawn(user.world());
     BlockType.BASALT.asParticle(location).count(5).offset(0.3).speed(0.12).spawn(user.world());
 
     if (ThreadLocalRandom.current().nextInt(2) == 0) {
       Sound.BLOCK_LAVA_POP.asEffect(1.2f, 0.8f).play(user.world(), location);
     }
 
-    AABB hitBox = AABB.of(location, 1.8);
-    for (LivingEntity target : user.world().nearbyLivingEntities(hitBox)) {
-      if (!target.equals(user) && hitEntities.add(target.uuid())) {
+    for (Entity e : user.world().nearbyEntities(location, 1.8)) {
+      if (e instanceof LivingEntity target && !target.equals(user) && hitEntities.add(target.uuid())) {
         target.damage(userConfig.damage, user, description());
-        BendingEffect.FIRE_TICK.apply(target, userConfig.fireTicks);
+        BendingEffect.FIRE_TICK.apply(user, target, userConfig.fireTicks);
         Vector3d geyserLaunch = Vector3d.of(0, userConfig.upwardLaunch, 0);
         target.applyVelocity(this, geyserLaunch);
         Sound.ENTITY_GENERIC_EXPLODE.asEffect(1.0f, 1.2f).play(user.world(), target.center());
@@ -157,7 +156,7 @@ public class VolcanicFissure extends AbilityInstance {
 
   @Override
   public Collection<Collider> colliders() {
-    return fissurePoints.stream().map(p -> (Collider) AABB.of(p, 1.5)).toList();
+    return fissurePoints.stream().map(p -> (Collider) AABB.of(p.subtract(1.5, 1.5, 1.5), p.add(1.5, 1.5, 1.5))).toList();
   }
 
   private static final class Config implements Configurable {
@@ -169,7 +168,7 @@ public class VolcanicFissure extends AbilityInstance {
     private double range = 18.0;
     @Modifiable(Attribute.SPEED)
     private double speed = 0.95;
-    @Modifiable(Attribute.KNOCKUP)
+    @Modifiable(Attribute.STRENGTH)
     private double upwardLaunch = 0.85;
     @Modifiable(Attribute.DURATION)
     private long lavaDuration = 4500;
