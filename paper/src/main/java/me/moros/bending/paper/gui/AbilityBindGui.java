@@ -105,6 +105,7 @@ public final class AbilityBindGui implements InventoryHolder {
         .filter(desc -> !desc.hidden())
         .filter(user::hasPermission)
         .sorted(Comparator.comparing(d -> d.key().value()))
+        .map(seq -> (AbilityDescription) seq)
         .toList();
       return;
     }
