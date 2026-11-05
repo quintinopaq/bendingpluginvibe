@@ -29,7 +29,11 @@ public final class BendingBootstrap extends JavaPlugin {
   @Override
   public void onLoad() {
     if (instance == null) {
-      instance = new PaperBending(this, getDataFolder().toPath(), new Slf4jLogger(getSLF4JLogger()));
+      try {
+        instance = new PaperBending(this, getDataFolder().toPath(), new Slf4jLogger(getSLF4JLogger()));
+      } catch (Throwable t) {
+        getSLF4JLogger().error("Failed to initialize Bending during onLoad()", t);
+      }
     }
     if (getServer().getPluginManager().getPlugin("WorldGuard") != null) {
       WorldGuardFlag.registerFlag();
@@ -38,11 +42,21 @@ public final class BendingBootstrap extends JavaPlugin {
 
   @Override
   public void onEnable() {
-    instance.onPluginEnable();
+    if (instance == null) {
+      onLoad();
+    }
+    if (instance != null) {
+      instance.onPluginEnable();
+    } else {
+      getSLF4JLogger().error("Bending failed to enable because initialization failed.");
+      getServer().getPluginManager().disablePlugin(this);
+    }
   }
 
   @Override
   public void onDisable() {
-    instance.onPluginDisable();
+    if (instance != null) {
+      instance.onPluginDisable();
+    }
   }
 }

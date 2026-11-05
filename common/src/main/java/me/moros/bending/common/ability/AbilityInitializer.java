@@ -318,7 +318,7 @@ public final class AbilityInitializer implements Initializer {
 
     Sequence tidalSurge = AbilityDescription.builder("TidalSurge", TidalSurge::new)
       .element(WATER).activation(SEQUENCE).buildSequence(steps -> steps
-        .add(waterWave, SNEAK)
+        .add(waterRing, SNEAK)
         .add(waterSpout, ATTACK)
         .add(waterManipulation, SNEAK_RELEASE, ATTACK)
       );

@@ -12,11 +12,12 @@ repositories {
 }
 
 configure<JavaPluginExtension> {
-    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    toolchain.languageVersion = JavaLanguageVersion.of(JavaVersion.current().majorVersion.toInt())
 }
 
 tasks {
     withType<JavaCompile> {
+        options.release.set(25)
         options.compilerArgs.addAll(listOf("-Xlint:unchecked", "-Xlint:deprecation"))
         options.encoding = "UTF-8"
     }
