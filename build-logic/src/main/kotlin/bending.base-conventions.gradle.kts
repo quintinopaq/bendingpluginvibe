@@ -12,7 +12,7 @@ repositories {
 }
 
 configure<JavaPluginExtension> {
-    toolchain.languageVersion = JavaLanguageVersion.of(25)
+    toolchain.languageVersion = JavaLanguageVersion.of(27)
 }
 
 tasks {
