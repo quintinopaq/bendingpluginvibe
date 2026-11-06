@@ -30,11 +30,13 @@ import me.moros.bending.api.ability.element.Element;
 import me.moros.bending.api.locale.Translation;
 import me.moros.bending.api.registry.Registries;
 import me.moros.bending.api.user.User;
+import me.moros.bending.api.util.TextUtil;
 import me.moros.bending.common.locale.Message;
 import net.kyori.adventure.identity.Identity;
 import net.kyori.adventure.text.Component;
 import net.kyori.adventure.text.format.NamedTextColor;
 import net.kyori.adventure.text.format.TextDecoration;
+import net.kyori.adventure.text.serializer.plain.PlainTextComponentSerializer;
 import net.kyori.adventure.translation.GlobalTranslator;
 import org.bukkit.Bukkit;
 import org.bukkit.Material;
@@ -147,12 +149,11 @@ public final class AbilityBindGui implements InventoryHolder {
             .append(asRendered(elem.displayName()))
             .append(Component.text(" (Clique para ver)", NamedTextColor.DARK_GRAY)));
 
-      List<Component> lore = List.of(
-        plain(asRendered(elem.description())),
-        Component.empty(),
-        plain(Component.text(active ? "✔ Elemento visualizado no momento" : "➜ Clique para listar estas habilidades",
-          active ? NamedTextColor.GREEN : NamedTextColor.YELLOW))
-      );
+      List<Component> lore = new ArrayList<>();
+      lore.addAll(wrapToLore(elem.description(), NamedTextColor.GRAY));
+      lore.add(Component.empty());
+      lore.add(plain(Component.text(active ? "✔ Elemento visualizado" : "➜ Clique para listar habilidades",
+        active ? NamedTextColor.GREEN : NamedTextColor.YELLOW)));
 
       ItemStack tabItem = createItem(mat, 1, name, lore, active);
       inventory.setItem(i, tabItem);
@@ -160,14 +161,15 @@ public final class AbilityBindGui implements InventoryHolder {
 
     // Sequence / Combos tab in slot 7
     Component comboTabName = viewingSequences
-      ? plain(Component.text("✦ Sequências & Combos ✦ (Ativo)", NamedTextColor.GOLD, TextDecoration.BOLD))
+      ? plain(Component.text("✦ Sequências & Combos [ATIVO]", NamedTextColor.GOLD, TextDecoration.BOLD))
       : plain(Component.text("✧ Sequências & Combos", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD));
     List<Component> comboTabLore = List.of(
       plain(Component.text("Guia Informativo de Combos", NamedTextColor.YELLOW)),
-      plain(Component.text("Acesse todas as habilidades de sequência e combinações", NamedTextColor.GRAY)),
-      plain(Component.text("elementais disponíveis com suas instruções e efeitos.", NamedTextColor.GRAY)),
+      plain(Component.text("Acesse todas as sequências e", NamedTextColor.GRAY)),
+      plain(Component.text("combinações elementais com", NamedTextColor.GRAY)),
+      plain(Component.text("suas instruções e efeitos.", NamedTextColor.GRAY)),
       Component.empty(),
-      plain(Component.text(viewingSequences ? "✔ Visualizando Combos no momento" : "➜ Clique para abrir o Guia de Combos!",
+      plain(Component.text(viewingSequences ? "✔ Visualizando Combos" : "➜ Clique para abrir o Guia!",
         viewingSequences ? NamedTextColor.GREEN : NamedTextColor.YELLOW))
     );
     ItemStack comboTabItem = createItem(Material.NETHER_STAR, 1, comboTabName, comboTabLore, viewingSequences);
@@ -175,7 +177,7 @@ public final class AbilityBindGui implements InventoryHolder {
 
     ItemStack closeItem = createItem(Material.BARRIER, 1,
       plain(Component.text("✖ Fechar Menu", NamedTextColor.RED, TextDecoration.BOLD)),
-      List.of(plain(Component.text("Clique para fechar esta interface.", NamedTextColor.GRAY))), false);
+      List.of(plain(Component.text("Clique para fechar.", NamedTextColor.GRAY))), false);
     inventory.setItem(8, closeItem);
   }
 
@@ -183,7 +185,7 @@ public final class AbilityBindGui implements InventoryHolder {
     if (cachedAbilities.isEmpty()) {
       ItemStack emptyItem = createItem(Material.STRUCTURE_VOID, 1,
         plain(Component.text("Nenhuma habilidade encontrada", NamedTextColor.RED)),
-        List.of(plain(Component.text("Não há habilidades disponíveis para este elemento.", NamedTextColor.GRAY))), false);
+        List.of(plain(Component.text("Sem habilidades para este elemento.", NamedTextColor.GRAY))), false);
       inventory.setItem(22, emptyItem);
       return;
     }
@@ -201,13 +203,13 @@ public final class AbilityBindGui implements InventoryHolder {
 
     if (currentPage > 0) {
       ItemStack prev = createItem(Material.ARROW, 1,
-        plain(Component.text("◀ Página Anterior (" + currentPage + ")", NamedTextColor.YELLOW, TextDecoration.BOLD)),
+        plain(Component.text("◀ Anterior (" + currentPage + ")", NamedTextColor.YELLOW, TextDecoration.BOLD)),
         List.of(plain(Component.text("Clique para voltar.", NamedTextColor.GRAY))), false);
       inventory.setItem(34, prev);
     }
     if ((currentPage + 1) * ABILITIES_PER_PAGE < total) {
       ItemStack next = createItem(Material.ARROW, 1,
-        plain(Component.text("Próxima Página (" + (currentPage + 2) + ") ▶", NamedTextColor.YELLOW, TextDecoration.BOLD)),
+        plain(Component.text("Próxima (" + (currentPage + 2) + ") ▶", NamedTextColor.YELLOW, TextDecoration.BOLD)),
         List.of(plain(Component.text("Clique para avançar.", NamedTextColor.GRAY))), false);
       inventory.setItem(35, next);
     }
@@ -222,15 +224,15 @@ public final class AbilityBindGui implements InventoryHolder {
 
     List<Component> lore = new ArrayList<>();
     if (isSequence) {
-      lore.add(plain(Component.text("✦ HABILIDADE DE SEQUÊNCIA / COMBO", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD)));
-      lore.add(plain(Component.text("➜ Clique para imprimir a sequência no chat!", NamedTextColor.YELLOW)));
+      lore.add(plain(Component.text("✦ SEQUÊNCIA / COMBO", NamedTextColor.LIGHT_PURPLE, TextDecoration.BOLD)));
+      lore.add(plain(Component.text("➜ Clique para imprimir no chat!", NamedTextColor.YELLOW)));
       lore.add(Component.empty());
     } else if (isSelected) {
       lore.add(plain(Component.text("✔ SELECIONADA PARA ALOCAR", NamedTextColor.GREEN, TextDecoration.BOLD)));
-      lore.add(plain(Component.text("➜ Clique em um slot (1-9) abaixo para vincular!", NamedTextColor.YELLOW)));
+      lore.add(plain(Component.text("➜ Clique num slot abaixo (1-9)!", NamedTextColor.YELLOW)));
       lore.add(Component.empty());
     } else {
-      lore.add(plain(Component.text("➜ Clique com botão esquerdo para selecionar", NamedTextColor.YELLOW)));
+      lore.add(plain(Component.text("➜ Clique esquerdo para selecionar", NamedTextColor.YELLOW)));
       lore.add(Component.empty());
     }
 
@@ -243,24 +245,23 @@ public final class AbilityBindGui implements InventoryHolder {
         ? Component.text("⏳ Em Recarga", NamedTextColor.RED)
         : Component.text("✔ Pronta", NamedTextColor.GREEN))));
 
-    Component descComp = Message.ABILITY_DESCRIPTION.build(desc);
-    Component renderedDesc = asRendered(descComp);
-    lore.add(plain(Component.text("Descrição: ", NamedTextColor.GRAY)));
-    lore.add(plain(renderedDesc));
+    lore.add(Component.empty());
+    lore.add(plain(Component.text("Descrição: ", NamedTextColor.GOLD, TextDecoration.BOLD)));
+    lore.addAll(wrapToLore(Message.ABILITY_DESCRIPTION.build(desc), NamedTextColor.GRAY));
 
     if (desc instanceof Sequence seq) {
       lore.add(Component.empty());
-      lore.add(plain(Component.text("Sequência de Ativação (Combo):", NamedTextColor.GOLD, TextDecoration.BOLD)));
-      lore.add(plain(asRendered(seq.instructions())));
+      lore.add(plain(Component.text("Ativação (Ordem do Combo):", NamedTextColor.GOLD, TextDecoration.BOLD)));
+      lore.addAll(wrapToLore(seq.instructions(), NamedTextColor.YELLOW));
       lore.add(Component.empty());
-      lore.add(plain(Component.text("ℹ Sequências são combos passivos executados com os", NamedTextColor.YELLOW)));
-      lore.add(plain(Component.text("  golpes vinculados nos seus slots normais da hotbar.", NamedTextColor.YELLOW)));
+      lore.add(plain(Component.text("ℹ Combos passivos executados", NamedTextColor.DARK_GRAY)));
+      lore.add(plain(Component.text("  via golpes na hotbar.", NamedTextColor.DARK_GRAY)));
     } else {
       String key = desc.translationKey() + ".instructions";
       if (GlobalTranslator.translator().canTranslate(key, locale)) {
         lore.add(Component.empty());
-        lore.add(plain(Component.text("Instruções: ", NamedTextColor.AQUA)));
-        lore.add(plain(asRendered(Message.ABILITY_INSTRUCTIONS.build(desc))));
+        lore.add(plain(Component.text("Instruções de Uso:", NamedTextColor.AQUA, TextDecoration.BOLD)));
+        lore.addAll(wrapToLore(Message.ABILITY_INSTRUCTIONS.build(desc), NamedTextColor.GRAY));
       }
     }
 
@@ -276,7 +277,7 @@ public final class AbilityBindGui implements InventoryHolder {
     ItemStack clearItem = createItem(Material.LAVA_BUCKET, 1,
       plain(Component.text("✖ Limpar Todos os Slots", NamedTextColor.RED, TextDecoration.BOLD)),
       List.of(
-        plain(Component.text("Esvazia todos os 9 slots da sua hotbar de dobras.", NamedTextColor.GRAY)),
+        plain(Component.text("Esvazia todos os 9 slots da hotbar.", NamedTextColor.GRAY)),
         plain(Component.text("➜ Clique para limpar tudo.", NamedTextColor.YELLOW))
       ), false);
     inventory.setItem(36, clearItem);
@@ -288,15 +289,15 @@ public final class AbilityBindGui implements InventoryHolder {
         List.of(
           plain(asRendered(selectedAbility.displayName())),
           Component.empty(),
-          plain(Component.text("Clique em um dos slots (1-9) abaixo para alocar.", NamedTextColor.YELLOW)),
-          plain(Component.text("Ou clique novamente nela acima para desmarcar.", NamedTextColor.GRAY))
+          plain(Component.text("Clique num slot (1-9) para alocar.", NamedTextColor.YELLOW)),
+          plain(Component.text("Ou clique nela acima para desmarcar.", NamedTextColor.GRAY))
         ), true);
     } else {
       selectedIndicator = createItem(Material.HOPPER, 1,
-        plain(Component.text("Nenhuma Habilidade Selecionada", NamedTextColor.YELLOW)),
+        plain(Component.text("Nenhuma Selecionada", NamedTextColor.YELLOW)),
         List.of(
-          plain(Component.text("1. Clique em uma habilidade acima.", NamedTextColor.GRAY)),
-          plain(Component.text("2. Depois clique no slot (1-9) desejado.", NamedTextColor.GRAY))
+          plain(Component.text("1. Clique numa habilidade acima.", NamedTextColor.GRAY)),
+          plain(Component.text("2. Depois clique num slot (1-9).", NamedTextColor.GRAY))
         ), false);
     }
     inventory.setItem(40, selectedIndicator);
@@ -304,10 +305,10 @@ public final class AbilityBindGui implements InventoryHolder {
     ItemStack helpItem = createItem(Material.BOOK, 1,
       plain(Component.text("✦ Guia Rápido ✦", NamedTextColor.GOLD, TextDecoration.BOLD)),
       List.of(
-        plain(Component.text("1. Clique na habilidade que quer usar.", NamedTextColor.WHITE)),
-        plain(Component.text("2. Clique no slot (1 a 9) da barra inferior.", NamedTextColor.WHITE)),
-        plain(Component.text("3. Clique direito em um slot para desvincular.", NamedTextColor.WHITE)),
-        plain(Component.text("4. Feche a tela e use normalmente na hotbar!", NamedTextColor.GRAY))
+        plain(Component.text("1. Clique numa habilidade acima.", NamedTextColor.WHITE)),
+        plain(Component.text("2. Clique num slot (1-9) abaixo.", NamedTextColor.WHITE)),
+        plain(Component.text("3. Clique direito para desvincular.", NamedTextColor.WHITE)),
+        plain(Component.text("4. Feche o menu e use na hotbar!", NamedTextColor.GRAY))
       ), false);
     inventory.setItem(44, helpItem);
   }
@@ -321,8 +322,9 @@ public final class AbilityBindGui implements InventoryHolder {
           plain(Component.text("Slot " + i + ": ", NamedTextColor.GRAY)
             .append(Component.text("[Vazio]", NamedTextColor.DARK_GRAY))),
           List.of(
-            plain(Component.text("Nenhuma habilidade alocada neste slot.", NamedTextColor.GRAY)),
-            plain(Component.text("➜ Clique com uma habilidade selecionada para alocar.", NamedTextColor.YELLOW))
+            plain(Component.text("Slot vazio.", NamedTextColor.GRAY)),
+            plain(Component.text("➜ Selecione uma habilidade", NamedTextColor.YELLOW)),
+            plain(Component.text("  e clique aqui para alocar.", NamedTextColor.YELLOW))
           ), false);
         inventory.setItem(invSlot, emptySlot);
       } else {
@@ -335,13 +337,11 @@ public final class AbilityBindGui implements InventoryHolder {
             plain(Component.text("Elemento: ", NamedTextColor.GRAY).append(asRendered(getElementDisplay(bound)))),
             plain(Component.text("Status: ", NamedTextColor.GRAY)
               .append(onCooldown
-                ? Component.text("⏳ Em Recarga (Cooldown)", NamedTextColor.RED, TextDecoration.BOLD)
+                ? Component.text("⏳ Em Recarga", NamedTextColor.RED, TextDecoration.BOLD)
                 : Component.text("✔ Pronta para uso", NamedTextColor.GREEN, TextDecoration.BOLD))),
             Component.empty(),
-            plain(Component.text("➜ [Botão Esquerdo] ", NamedTextColor.YELLOW)
-              .append(Component.text("Substituir pela selecionada", NamedTextColor.WHITE))),
-            plain(Component.text("✖ [Botão Direito] ", NamedTextColor.RED)
-              .append(Component.text("Desvincular este slot", NamedTextColor.WHITE)))
+            plain(Component.text("➜ [Esq.] Vincular selecionada", NamedTextColor.YELLOW)),
+            plain(Component.text("✖ [Dir.] Desvincular slot", NamedTextColor.RED))
           ), false);
         inventory.setItem(invSlot, boundItem);
       }
@@ -479,6 +479,23 @@ public final class AbilityBindGui implements InventoryHolder {
         }
       }
     }
+  }
+
+  private static final int MAX_LORE_WIDTH = 34;
+
+  private List<Component> wrapToLore(Component component, NamedTextColor color) {
+    Component rendered = asRendered(component);
+    String text = PlainTextComponentSerializer.plainText().serialize(rendered);
+    List<Component> lines = new ArrayList<>();
+    for (String paragraph : text.split("\\r?\\n")) {
+      if (paragraph.isBlank()) {
+        continue;
+      }
+      for (String line : TextUtil.wrap(paragraph, MAX_LORE_WIDTH)) {
+        lines.add(plain(Component.text(line, color)));
+      }
+    }
+    return lines;
   }
 
   private Component asRendered(Component source) {
